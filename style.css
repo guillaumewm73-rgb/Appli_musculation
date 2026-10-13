@@ -414,6 +414,125 @@ p {
   color: var(--couleur-texte-secondaire);
 }
 
+/* ---------- Progression ---------- */
+.etiquette {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Liste déroulante en pilule ; chevron fin intégré au CSS (ivoire #ededf3, pas de fichier externe) */
+.champ--liste {
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 0 var(--esp-40) 0 var(--esp-20);
+  font-size: var(--texte-corps);
+  text-align: left;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23ededf3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 16px center;
+  background-size: 20px 20px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+/* Lecture du point choisi : la valeur d'abord, la date ensuite */
+.lecture {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-8);
+  margin-top: var(--esp-16);
+  min-height: 28px;
+}
+
+.lecture__valeur {
+  font-size: var(--texte-grand);
+  font-weight: var(--graisse-accent);
+}
+
+.lecture__date {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+.graphe-zone {
+  margin-top: var(--esp-8);
+}
+
+/* Glisser le doigt horizontalement lit la courbe ; le défilement vertical reste possible */
+.graphe {
+  display: block;
+  touch-action: pan-y;
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--rayon-defaut);
+}
+
+.graphe__grille {
+  stroke: var(--couleur-controle);
+  stroke-width: 1;
+}
+
+.graphe__texte {
+  fill: var(--couleur-texte-secondaire);
+  font-size: var(--texte-legende);
+}
+
+/* Une seule série : ivoire, comme le reste de l'appli (le cobalt reste réservé à l'action principale) */
+.graphe__ligne {
+  fill: none;
+  stroke: var(--couleur-texte);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.graphe__point {
+  fill: var(--couleur-texte);
+  stroke: var(--couleur-carte);
+  stroke-width: 2;
+}
+
+.graphe__curseur {
+  stroke: var(--couleur-texte-secondaire);
+  stroke-width: 1;
+}
+
+/* Tableau des valeurs */
+.tableau {
+  width: 100%;
+  margin-top: var(--esp-12);
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.tableau th {
+  padding: 0 0 var(--esp-8);
+  font-size: var(--texte-legende);
+  font-weight: var(--graisse-normale);
+  letter-spacing: 0.01em;
+  color: var(--couleur-texte-secondaire);
+  text-align: left;
+}
+
+.tableau td {
+  padding: var(--esp-8) 0;
+  border-top: 1px solid var(--couleur-controle);
+}
+
+.tableau td:first-child {
+  width: 40%;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Texte lu par les lecteurs d'écran mais invisible */
+.visuellement-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 /* ---------- Boutons (pilule, hauteur tactile) ---------- */
 .bouton {
   display: inline-flex;

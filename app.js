@@ -2,7 +2,8 @@
    Étape 1 : service worker (hors ligne + installation).
    Étape 2 : programme de départ + écran d'accueil.
    Étape 3 : écran de séance (saisie, cases à cocher, enregistrement).
-   Étape 4 : historique (liste, détail, suppression). */
+   Étape 4 : historique (liste, détail, suppression).
+   Étape 5 : progression (courbe SVG du meilleur poids). */
 'use strict';
 
 /* ---------- Programme de départ ---------- */
@@ -310,7 +311,7 @@ function enregistrer() {
 
 /* ---------- Écrans ---------- */
 
-const ECRANS = ['accueil', 'seance', 'historique', 'detail'];
+const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression'];
 
 /** Affiche un écran : titre, bouton retour, focus pour les lecteurs d'écran. */
 function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil') {
@@ -715,6 +716,265 @@ function retour() {
   else afficherAccueil();
 }
 
+/* ---------- Progression ---------- */
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Crée un élément SVG avec ses attributs. */
+function creerSvg(balise, attributs, classe) {
+  const el = document.createElementNS(SVG_NS, balise);
+  for (const [nom, valeur] of Object.entries(attributs)) el.setAttribute(nom, valeur);
+  if (classe) el.setAttribute('class', classe);
+  return el;
+}
+
+/** "2026-10-13T18:30" → horodatage local en ms (NaN si format inconnu). */
+function tempsDepuisId(id) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(id);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : NaN;
+}
+
+/** Meilleure série faite : la plus lourde, puis celle avec le plus de reps. null si aucune. */
+function meilleureSerie(series) {
+  let meilleure = null;
+  for (const s of series) {
+    if (!s.fait || typeof s.poids !== 'number' || !Number.isFinite(s.poids)) continue;
+    const reps = typeof s.reps === 'number' ? s.reps : null;
+    if (!meilleure || s.poids > meilleure.poids || (s.poids === meilleure.poids && (reps ?? -1) > (meilleure.reps ?? -1))) {
+      meilleure = { poids: s.poids, reps };
+    }
+  }
+  return meilleure;
+}
+
+/** Un point par séance où l'exercice a une série faite avec un poids, du plus ancien au plus récent. */
+function pointsProgression(exerciceId) {
+  const points = [];
+  for (const entree of entreesHistorique().reverse()) {
+    const ex = entree.exercices.find((e) => e && e.exerciceId === exerciceId);
+    const meilleure = ex && meilleureSerie(ex.series);
+    const temps = tempsDepuisId(entree.id);
+    if (meilleure && Number.isFinite(temps)) points.push({ id: entree.id, temps, ...meilleure });
+  }
+  return points;
+}
+
+/** Graduations rondes couvrant [min, max] : 5 valeurs au plus. */
+function graduations(min, max) {
+  if (min === max) {
+    min -= 2.5;
+    max += 2.5;
+  }
+  // Pas « de salle » : multiples de 2,5 kg dès que possible
+  const pas = [0.5, 1, 2.5, 5, 10, 25, 50, 100].find((p) => Math.ceil(max / p) - Math.floor(min / p) <= 4) ?? 250;
+  const valeurs = [];
+  for (let v = Math.max(0, Math.floor(min / pas) * pas); v <= max + pas - 1e-9; v += pas) {
+    valeurs.push(Math.round(v * 100) / 100);
+    if (v >= max) break;
+  }
+  return valeurs;
+}
+
+/** « +5 kg depuis le 01/09/2026 » entre le premier et le dernier point. */
+function texteEvolution(points) {
+  const ecart = Math.round((points[points.length - 1].poids - points[0].poids) * 100) / 100;
+  const signe = ecart > 0 ? '+' : ecart < 0 ? '−' : '±';
+  return `${signe}${formaterNombre(Math.abs(ecart))} kg depuis le ${formaterDate(points[0].id)}`;
+}
+
+/**
+ * Courbe SVG maison. Toucher ou glisser sur la courbe (ou flèches du clavier)
+ * choisit un point ; sa valeur s'affiche dans la zone de lecture.
+ */
+function dessinerGraphe(zone, lecture, points, exercice) {
+  const largeur = Math.max(240, Math.floor(zone.clientWidth));
+  const hauteur = 200;
+  const marge = { haut: 12, droite: 12, bas: 28, gauche: 40 };
+  const valeurs = points.map((p) => p.poids);
+  const ticks = graduations(Math.min(...valeurs), Math.max(...valeurs));
+  const yMin = ticks[0];
+  const yMax = ticks[ticks.length - 1];
+  const t0 = points[0].temps;
+  const t1 = points[points.length - 1].temps;
+  const x = (t) => (t1 === t0
+    ? (marge.gauche + largeur - marge.droite) / 2
+    : marge.gauche + ((t - t0) / (t1 - t0)) * (largeur - marge.gauche - marge.droite));
+  const y = (v) => marge.haut + ((yMax - v) / (yMax - yMin)) * (hauteur - marge.haut - marge.bas);
+
+  const premier = points[0];
+  const dernier = points[points.length - 1];
+  const graphe = creerSvg('svg', {
+    width: largeur, height: hauteur, viewBox: `0 0 ${largeur} ${hauteur}`, role: 'img', tabindex: '0',
+    'aria-label': `Courbe du meilleur poids : ${points.length} séance${points.length > 1 ? 's' : ''}, `
+      + `de ${formaterNombre(premier.poids)} kg le ${formaterDate(premier.id)} à ${formaterNombre(dernier.poids)} kg le ${formaterDate(dernier.id)}. `
+      + 'Flèches gauche et droite pour lire chaque point.',
+  }, 'graphe');
+
+  // Grille horizontale (traits fins) et valeurs en kg
+  for (const v of ticks) {
+    const yLigne = Math.round(y(v)) + 0.5;
+    graphe.append(creerSvg('line', { x1: marge.gauche, x2: largeur - marge.droite, y1: yLigne, y2: yLigne }, 'graphe__grille'));
+    const texte = creerSvg('text', { x: marge.gauche - 8, y: yLigne, 'text-anchor': 'end', 'dominant-baseline': 'middle' }, 'graphe__texte');
+    texte.textContent = formaterNombre(v);
+    graphe.append(texte);
+  }
+
+  // Dates : première et dernière séance (« 01/09 »)
+  const dates = t1 === t0 ? [[premier, 'middle']] : [[premier, 'start'], [dernier, 'end']];
+  for (const [point, ancrage] of dates) {
+    const texte = creerSvg('text', { x: x(point.temps), y: hauteur - 8, 'text-anchor': ancrage }, 'graphe__texte');
+    texte.textContent = formaterDate(point.id).slice(0, 5);
+    graphe.append(texte);
+  }
+
+  // Courbe et points (anneau couleur de la carte pour les détacher)
+  const trace = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.temps).toFixed(1)},${y(p.poids).toFixed(1)}`).join('');
+  graphe.append(creerSvg('path', { d: trace }, 'graphe__ligne'));
+  for (const p of points) graphe.append(creerSvg('circle', { cx: x(p.temps), cy: y(p.poids), r: 4 }, 'graphe__point'));
+
+  // Curseur : trait vertical + point agrandi sur la séance choisie
+  const curseur = creerSvg('line', { y1: marge.haut, y2: hauteur - marge.bas }, 'graphe__curseur');
+  const choix = creerSvg('circle', { r: 6 }, 'graphe__point');
+  graphe.append(curseur, choix);
+
+  let indexChoisi = points.length - 1;
+  const choisir = (i) => {
+    indexChoisi = Math.max(0, Math.min(points.length - 1, i));
+    const p = points[indexChoisi];
+    const xPoint = x(p.temps);
+    curseur.setAttribute('x1', xPoint);
+    curseur.setAttribute('x2', xPoint);
+    choix.setAttribute('cx', xPoint);
+    choix.setAttribute('cy', y(p.poids));
+    lecture.replaceChildren(
+      creer('span', 'lecture__valeur', texteSerie(exercice, p)),
+      creer('span', 'lecture__date', formaterDate(p.id)),
+    );
+  };
+
+  // Le point le plus proche du doigt en X : pas besoin de viser le point
+  const pointLePlusProche = (evenement) => {
+    const xDoigt = evenement.clientX - graphe.getBoundingClientRect().left;
+    let meilleur = 0;
+    points.forEach((p, i) => {
+      if (Math.abs(x(p.temps) - xDoigt) < Math.abs(x(points[meilleur].temps) - xDoigt)) meilleur = i;
+    });
+    choisir(meilleur);
+  };
+  graphe.addEventListener('pointerdown', pointLePlusProche);
+  graphe.addEventListener('pointermove', (evenement) => {
+    if (evenement.pointerType === 'mouse' || evenement.buttons) pointLePlusProche(evenement);
+  });
+  graphe.addEventListener('keydown', (evenement) => {
+    const sauts = { ArrowLeft: -1, ArrowRight: 1, Home: -Infinity, End: Infinity };
+    if (!(evenement.key in sauts)) return;
+    evenement.preventDefault();
+    const saut = sauts[evenement.key];
+    choisir(Number.isFinite(saut) ? indexChoisi + saut : (saut < 0 ? 0 : points.length - 1));
+  });
+
+  choisir(indexChoisi);
+  zone.replaceChildren(graphe);
+}
+
+/** Tableau des valeurs (équivalent accessible de la courbe), la plus récente en premier. */
+function creerTableauProgression(points, exercice) {
+  const tableau = creer('table', 'tableau');
+  const legende = creer('caption', 'visuellement-cache', 'Meilleure série par séance');
+  const entete = creer('thead', '');
+  const ligneEntete = document.createElement('tr');
+  for (const titre of ['Date', 'Meilleure série']) {
+    const th = creer('th', '', titre);
+    th.scope = 'col';
+    ligneEntete.append(th);
+  }
+  entete.append(ligneEntete);
+  const corps = document.createElement('tbody');
+  for (const p of [...points].reverse()) {
+    const ligne = document.createElement('tr');
+    ligne.append(creer('td', '', formaterDate(p.id)), creer('td', '', texteSerie(exercice, p)));
+    corps.append(ligne);
+  }
+  tableau.append(legende, entete, corps);
+  return tableau;
+}
+
+/** Remplit la zone de résultats pour l'exercice choisi. */
+function majProgression() {
+  const exerciceId = document.getElementById('choix-exercice').value;
+  etat.exerciceProgression = exerciceId;
+  const exercice = trouverExerciceDansProgramme(exerciceId);
+  const points = pointsProgression(exerciceId);
+  const resultats = document.getElementById('resultats-progression');
+
+  if (!points.length) {
+    const vide = exercice && exercice.poidsDuCorps
+      ? 'Aucun lest enregistré pour cet exercice au poids du corps.'
+      : 'Pas encore de série cochée avec un poids pour cet exercice.';
+    resultats.replaceChildren(creer('p', 'texte-secondaire', vide));
+    return;
+  }
+
+  const record = points.reduce((a, b) => (b.poids > a.poids ? b : a));
+  const resume = [`Record : ${formaterNombre(record.poids)} kg le ${formaterDate(record.id)}`];
+  if (points.length > 1) resume.push(texteEvolution(points));
+
+  const carteGraphe = creer('article', 'carte');
+  const lecture = creer('p', 'lecture');
+  lecture.setAttribute('aria-live', 'polite');
+  const zone = creer('div', 'graphe-zone');
+  carteGraphe.append(
+    creer('h2', 'exercice__nom', exercice.poidsDuCorps ? 'Meilleur lest' : 'Meilleur poids'),
+    creer('p', 'exercice__cible', resume.join(' · ')),
+    lecture,
+    zone,
+  );
+  if (points.length === 1) carteGraphe.append(creer('p', 'exercice__cible', 'Une seule séance : la courbe se dessinera à la prochaine.'));
+
+  const carteTableau = creer('article', 'carte');
+  carteTableau.append(creer('h2', 'exercice__nom', 'Séances'), creerTableauProgression(points, exercice));
+
+  resultats.replaceChildren(carteGraphe, carteTableau);
+  dessinerGraphe(zone, lecture, points, exercice);
+}
+
+/** Écran Progression : choix de l'exercice, courbe, tableau. */
+function afficherProgression() {
+  const exercices = etat.donnees.programme.flatMap((s) => s.exercices.filter(Boolean));
+  if (!exercices.length) {
+    document.getElementById('ecran-progression').replaceChildren(creer('p', 'texte-secondaire', 'Le programme ne contient aucun exercice.'));
+    montrerEcran('progression', 'Progression');
+    return;
+  }
+
+  // Par défaut : le dernier exercice regardé, sinon le premier qui a des données
+  let choisi = exercices.find((ex) => ex.id === etat.exerciceProgression);
+  if (!choisi) choisi = exercices.find((ex) => pointsProgression(ex.id).length) || exercices[0];
+
+  const select = document.createElement('select');
+  select.id = 'choix-exercice';
+  select.className = 'champ champ--liste';
+  for (const seance of etat.donnees.programme) {
+    const groupe = document.createElement('optgroup');
+    groupe.label = seance.nom;
+    for (const ex of seance.exercices.filter(Boolean)) {
+      const option = creer('option', '', ex.nom);
+      option.value = ex.id;
+      option.selected = ex.id === choisi.id;
+      groupe.append(option);
+    }
+    select.append(groupe);
+  }
+  const etiquette = creer('label', 'etiquette', 'Exercice');
+  etiquette.htmlFor = select.id;
+  const resultats = creer('div', 'ecran');
+  resultats.id = 'resultats-progression';
+
+  document.getElementById('ecran-progression').replaceChildren(etiquette, select, resultats);
+  montrerEcran('progression', 'Progression');
+  majProgression(); // après l'affichage : la courbe a besoin de la largeur réelle
+}
+
 /* ---------- Service worker ---------- */
 
 const statutHorsLigne = document.getElementById('statut-hors-ligne');
@@ -755,6 +1015,26 @@ document.getElementById('bouton-retour').addEventListener('click', retour);
 document.getElementById('bouton-historique').addEventListener('click', () => {
   afficherMessage('');
   afficherHistorique();
+});
+
+document.getElementById('bouton-progression').addEventListener('click', () => {
+  afficherMessage('');
+  afficherProgression();
+});
+
+document.getElementById('ecran-progression').addEventListener('change', (evenement) => {
+  if (evenement.target.id === 'choix-exercice') majProgression();
+});
+
+// Rotation ou redimensionnement : la courbe est redessinée à la bonne largeur
+let redessinPrevu = false;
+window.addEventListener('resize', () => {
+  if (etat.ecran !== 'progression' || redessinPrevu) return;
+  redessinPrevu = true;
+  requestAnimationFrame(() => {
+    redessinPrevu = false;
+    if (document.getElementById('choix-exercice')) majProgression();
+  });
 });
 
 document.getElementById('ecran-historique').addEventListener('click', (evenement) => {
