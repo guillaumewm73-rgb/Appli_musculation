@@ -152,6 +152,73 @@ p {
   color: var(--couleur-texte-secondaire);
 }
 
+/* Message en haut d'écran (alerte de stockage, info) : contour fin, pas de couleur vive */
+.message {
+  padding: var(--esp-12) var(--esp-16);
+  border: 1px solid var(--couleur-bordure-claire);
+  border-radius: var(--rayon-carte);
+  font-size: var(--texte-petit);
+  line-height: 1.4;
+}
+
+/* ---------- Accueil : liste des séances ---------- */
+.liste-seances {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-12);
+}
+
+/* Bouton-carte : toute la carte est la cible tactile */
+.seance {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--esp-16);
+  width: 100%;
+  min-height: 96px;
+  padding: var(--esp-20) var(--esp-24);
+  border: 0;
+  border-radius: var(--rayon-carte);
+  background: var(--couleur-carte);
+  color: var(--couleur-texte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Retour visuel au toucher : un cran plus clair, sans ombre */
+.seance:active {
+  background: var(--couleur-controle);
+}
+
+.seance__textes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+  min-width: 0;
+}
+
+.seance__numero,
+.seance__infos {
+  font-size: var(--texte-petit);
+  letter-spacing: 0.005em;
+  color: var(--couleur-texte-secondaire);
+}
+
+.seance__nom {
+  font-size: var(--texte-sous-titre);
+  font-weight: var(--graisse-accent);
+  letter-spacing: 0.015em;
+  line-height: 1.2;
+}
+
+.seance__fleche {
+  color: var(--couleur-texte-secondaire);
+}
+
 /* ---------- Boutons (pilule, hauteur tactile) ---------- */
 .bouton {
   display: inline-flex;

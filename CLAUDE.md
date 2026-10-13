@@ -91,7 +91,7 @@ Données initiales à charger au premier lancement. Les poids sont ceux de mes d
       "id": "seance-1",
       "nom": "Push",
       "exercices": [
-        { "id": "dev-couche", "nom": "Développé couché", "series": 4, "repsMin": 8, "repsMax": 10, "poidsDefaut": null }
+        { "id": "dev-couche", "nom": "Développé couché", "series": 4, "repsMin": 8, "repsMax": 10, "poidsDefaut": null, "unite": "reps", "poidsDuCorps": false, "note": "" }
       ]
     }
   ],
@@ -108,6 +108,10 @@ Données initiales à charger au premier lancement. Les poids sont ceux de mes d
 }
 ```
 Garder un champ `version` pour pouvoir migrer les données plus tard.
+
+Décisions validées (étape 2) :
+- Tout est stocké dans une seule clé `suivi_donnees` (programme + historique).
+- `unite` : `"reps"` ou `"s"` (gainage). `poidsDuCorps` : le poids saisi = lest ajouté. `note` : précision courte (« par jambe »). `repsMin`/`repsMax` à `null` = « max ».
 
 ## Étapes de développement
 1. Structure du projet + manifest + service worker + page d'accueil vide qui s'installe.
