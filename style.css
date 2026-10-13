@@ -1,0 +1,195 @@
+/* =========================================================
+   Suivi de séances — styles
+   Référence visuelle : DESIGN.md (style Mercury, thème sombre).
+   Règle d'or : fond onyx, cartes graphite, texte ivoire,
+   cobalt pour UNE seule action principale par écran.
+   ========================================================= */
+
+/* ---------- Jetons (tokens) ---------- */
+:root {
+  color-scheme: dark;
+
+  /* Couleurs — nom Mercury en commentaire */
+  --couleur-fond: #171721;              /* Onyx Canvas : fond de page */
+  --couleur-carte: #1e1e2a;             /* Graphite Card : cartes */
+  --couleur-controle: #272735;          /* Obsidian Button : champs, boutons secondaires */
+  --couleur-bordure: #70707d;           /* Slate Border : séparateurs (jamais pour du texte) */
+  --couleur-bordure-claire: #e2e3ed;    /* Mist Border : contours fins */
+  --couleur-texte: #ededf3;             /* Ivory Text : texte principal, icônes */
+  --couleur-texte-secondaire: #c3c3cc;  /* Ash Text : texte atténué */
+  --couleur-action: #5266eb;            /* Cobalt : action principale uniquement */
+  --couleur-sur-action: #ffffff;        /* Pure White : texte sur cobalt */
+
+  /* Police système : rien à télécharger, l'appli reste hors ligne */
+  --police: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --graisse-normale: 400;
+  --graisse-accent: 480;                /* Plafond : jamais de gras 600-700 */
+
+  /* Tailles de texte (échelle Mercury, plafonnée pour le mobile) */
+  --texte-legende: 12px;
+  --texte-petit: 14px;
+  --texte-corps: 16px;                  /* Minimum pour les champs (sinon l'iPhone zoome) */
+  --texte-grand: 18px;
+  --texte-sous-titre: 21px;
+  --texte-titre: 28px;
+  --texte-titre-grand: 32px;
+
+  /* Espacements (base 4 px) */
+  --esp-4: 4px;
+  --esp-8: 8px;
+  --esp-12: 12px;
+  --esp-16: 16px;
+  --esp-20: 20px;
+  --esp-24: 24px;
+  --esp-32: 32px;
+  --esp-40: 40px;
+  --esp-56: 56px;
+  --esp-72: 72px;
+
+  /* Rayons */
+  --rayon-defaut: 4px;                  /* Éléments structurels */
+  --rayon-carte: 12px;
+  --rayon-pilule: 32px;                 /* Boutons, champs */
+
+  /* Mise en page */
+  --cible-min: 48px;                    /* Cible tactile (≥ 44 px), une main en salle */
+  --largeur-max: 640px;
+  --marge-laterale: var(--esp-20);
+}
+
+/* ---------- Base ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-family: var(--police);
+  font-size: var(--texte-corps);
+  font-weight: var(--graisse-normale);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: var(--graisse-accent);
+  letter-spacing: 0.015em;
+  line-height: 1.2;
+}
+
+p {
+  margin: 0;
+}
+
+/* Focus visible : contour ivoire, jamais supprimé */
+:focus-visible {
+  outline: 2px solid var(--couleur-texte);
+  outline-offset: 2px;
+}
+
+/* ---------- Barre du haut (collante, verre dépoli) ---------- */
+.barre {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding-top: calc(var(--esp-16) + env(safe-area-inset-top));
+  padding-bottom: var(--esp-16);
+  padding-left: max(var(--marge-laterale), env(safe-area-inset-left));
+  padding-right: max(var(--marge-laterale), env(safe-area-inset-right));
+  background: rgb(23 23 33 / 0.85);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.barre__titre {
+  max-width: var(--largeur-max);
+  margin: 0 auto;
+  font-size: var(--texte-titre);
+}
+
+/* ---------- Contenu ---------- */
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: calc(var(--largeur-max) + 2 * var(--marge-laterale));
+  margin: 0 auto;
+  padding: var(--esp-8) var(--marge-laterale) var(--esp-40);
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-12);
+}
+
+/* Carte graphite : séparée du fond par la valeur, sans ombre ni bordure */
+.carte {
+  background: var(--couleur-carte);
+  border-radius: var(--rayon-carte);
+  padding: var(--esp-24);
+}
+
+.carte__titre {
+  font-size: var(--texte-sous-titre);
+  margin-bottom: var(--esp-8);
+}
+
+.texte-secondaire {
+  color: var(--couleur-texte-secondaire);
+}
+
+/* ---------- Boutons (pilule, hauteur tactile) ---------- */
+.bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-8);
+  min-height: var(--cible-min);
+  padding: var(--esp-12) var(--esp-24);
+  border: 1px solid transparent;
+  border-radius: var(--rayon-pilule);
+  font: inherit;
+  font-weight: var(--graisse-normale);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Action principale : cobalt, une seule par écran */
+.bouton--principal {
+  background: var(--couleur-action);
+  color: var(--couleur-sur-action);
+}
+
+/* Action secondaire : contour ivoire, fond transparent */
+.bouton--secondaire {
+  background: transparent;
+  border-color: var(--couleur-texte);
+  color: var(--couleur-texte);
+}
+
+/* ---------- Pied de page ---------- */
+.pied {
+  padding: var(--esp-16) var(--marge-laterale) calc(var(--esp-16) + env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+.legende {
+  font-size: var(--texte-legende);
+  font-weight: var(--graisse-accent);
+  letter-spacing: 0.01em;
+  color: var(--couleur-texte-secondaire);
+}

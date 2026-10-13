@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Suivi de séances</title>
+  <meta name="description" content="Suivi de mes séances de musculation, utilisable hors ligne.">
+  <meta name="theme-color" content="#171721">
+  <meta name="color-scheme" content="dark">
+
+  <!-- Installation sur l'écran d'accueil (Android + iPhone) -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Suivi">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="barre">
+    <h1 class="barre__titre">Suivi</h1>
+  </header>
+
+  <main id="contenu" class="page">
+    <section class="carte" aria-labelledby="titre-seances">
+      <h2 id="titre-seances" class="carte__titre">Mes séances</h2>
+      <p class="texte-secondaire">Les 4 séances s'afficheront ici (étape&nbsp;2).</p>
+    </section>
+  </main>
+
+  <footer class="pied">
+    <p id="statut-hors-ligne" class="legende" role="status">Vérification du mode hors ligne…</p>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
