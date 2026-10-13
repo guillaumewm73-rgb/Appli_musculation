@@ -24,46 +24,46 @@ Le projet doit rester simple, rapide à ouvrir et utilisable sans connexion.
 Suivre `DESIGN.md` : base Mercury (fond onyx, cartes graphite, texte ivoire, contrôles en pilule) + v2 demandée par Guillaume : une couleur par séance, halo coloré, animations et effets au défilement (désactivés si « Réduire les animations »). Une seule action principale par écran. Les jetons sont en tête de `style.css`.
 
 ## Programme de départ
-Données initiales à charger au premier lancement. Les poids sont ceux de mes dernières séances ; ils doivent être modifiables dans l'appli. Un champ vide signifie : je saisis moi-même.
+Données initiales à charger au premier lancement (mises à jour par Guillaume le 13/10/2026). Les poids sont ceux de ses dernières séances ; ils sont modifiables dans l'appli. Un champ vide signifie : je saisis moi-même. Dans l'appli, Programme → « Remettre le programme de départ » recharge ce programme en gardant l'historique.
 
 ### Séance 1 — Push (pectoraux, épaules, triceps)
 | Exercice | Séries × reps | Poids de départ |
 |---|---|---|
 | Développé couché | 4 × 8-10 | |
-| Développé incliné haltères | 3 × 10-12 | |
-| Développé militaire | 3 × 8-10 | 14 kg |
-| Élévations latérales | 3 × 12-15 | 6-8 kg |
-| Dips ou poulie triceps | 3 × 8-10 | 20 kg (dips) |
+| Développé incliné haltères | 3 × 10-12 | 20 kg |
+| Développé militaire ou élévations latérales (au choix) | 3 × 8 | 8 kg |
+| Dips ou poulie triceps | 3 × 8-10 | 15 kg |
 | Extension triceps poulie haute | 3 × 10-12 | 15 kg |
+| Pectoral machine (facultatif) | 3 × 8 | 45 kg |
 
 ### Séance 2 — Pull (dos, biceps)
 | Exercice | Séries × reps | Poids de départ |
 |---|---|---|
-| Tirage vertical | 4 × 8-10 | 60 kg |
-| Rowing barre ou poulie basse | 4 × 10-12 | 50 kg |
+| Tirage vertical | 4 × 8-10 | 45 kg |
+| Rowing barre ou poulie basse | 4 × 10-12 | 75 kg |
 | Soulevé de terre roumain (RDL) | 3 × 8-10 | |
-| Face pull | 4 × 10-12 | 12,5 kg |
-| Curl biceps barre | 3 × 10-12 | 35 kg |
-| Curl marteau | 3 × 10-12 | 14 kg |
+| Face pull | 4 × 10-12 | |
+| Curl biceps barre | 3 × 10-12 | |
+| Curl marteau | 3 × 8 | 14 kg |
 
 ### Séance 3 — Legs + abdos
 | Exercice | Séries × reps | Poids de départ |
 |---|---|---|
-| Squat | 4 × 8-10 | |
-| Presse à cuisses | 4 × 10-12 | 130 kg |
-| Fentes bulgares | 3 × 10 par jambe | 12 kg |
-| Leg extension | 3 × 10-12 | 70 kg |
+| Pistol squat | 4 × 6-8 par jambe | poids du corps |
+| Presse à cuisses | 4 × 10-12 | 130 kg (→ 100 kg) |
+| Fentes bulgares | 3 × 10 par jambe | 8 kg |
+| Leg extension | 3 × 10-12 | 80 kg |
 | Leg curl | 4 × 8-10 | 50 kg |
 | Extension mollets | 4 × 15-20 | 14 kg |
-| Gainage planche | 3 × 45 s à 1 min | poids du corps |
+| Abdos poulie | 3 × 20 | 20 kg |
 
 ### Séance 4 — Push/Pull variation
 | Exercice | Séries × reps | Poids de départ |
 |---|---|---|
-| Développé haltères | 4 × 8-10 | 22 kg |
-| Écarté poulie ou développé incliné barre | 3 × 10-12 | |
-| Tirage horizontal unilatéral | 4 × 10-12 | 85 kg |
-| Élévations frontales | 3 × 12 | 8 kg |
+| Développé haltères | 4 × 8-10 | 20 kg |
+| Écarté poulie ou développé incliné barre | 3 × 10-12 | 5 kg |
+| Tirage horizontal unilatéral | 4 × 10-12 | 75 kg |
+| Élévations frontales ou delts machine (au choix) | 3 × 12 | 8 kg (20 kg à la machine) |
 | Tractions supination | 3 × max | poids du corps |
 | Curl incliné | 3 × 10-12 | 10 kg |
 

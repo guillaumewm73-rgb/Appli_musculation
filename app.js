@@ -24,52 +24,54 @@ function exo(id, nom, series, repsMin, repsMax, poidsDefaut, options = {}) {
   return { id, nom, series, repsMin, repsMax, poidsDefaut, unite: 'reps', poidsDuCorps: false, note: '', ...options };
 }
 
+// Programme transmis par Guillaume le 13/10/2026 (charges actuelles ; vide = je saisis)
+const DATE_PROGRAMME_DEPART = '13/10/2026';
 const PROGRAMME_DEPART = [
   {
     id: 'seance-1',
     nom: 'Push',
     exercices: [
       exo('dev-couche', 'Développé couché', 4, 8, 10, null),
-      exo('dev-incline-halteres', 'Développé incliné haltères', 3, 10, 12, null),
-      exo('dev-militaire', 'Développé militaire', 3, 8, 10, 14),
-      exo('elevations-laterales', 'Élévations latérales', 3, 12, 15, 6, { note: '6 à 8 kg' }),
-      exo('dips', 'Dips ou poulie triceps', 3, 8, 10, 20, { note: '20 kg aux dips' }),
+      exo('dev-incline-halteres', 'Développé incliné haltères', 3, 10, 12, 20),
+      exo('militaire-ou-laterales', 'Développé militaire ou élévations latérales', 3, 8, 8, 8),
+      exo('dips', 'Dips ou poulie triceps', 3, 8, 10, 15),
       exo('extension-triceps-poulie', 'Extension triceps poulie haute', 3, 10, 12, 15),
+      exo('pec-machine', 'Pectoral machine', 3, 8, 8, 45, { note: 'facultatif' }),
     ],
   },
   {
     id: 'seance-2',
     nom: 'Pull',
     exercices: [
-      exo('tirage-vertical', 'Tirage vertical', 4, 8, 10, 60),
-      exo('rowing', 'Rowing barre ou poulie basse', 4, 10, 12, 50),
+      exo('tirage-vertical', 'Tirage vertical', 4, 8, 10, 45),
+      exo('rowing', 'Rowing barre ou poulie basse', 4, 10, 12, 75),
       exo('rdl', 'Soulevé de terre roumain (RDL)', 3, 8, 10, null),
-      exo('face-pull', 'Face pull', 4, 10, 12, 12.5),
-      exo('curl-barre', 'Curl biceps barre', 3, 10, 12, 35),
-      exo('curl-marteau', 'Curl marteau', 3, 10, 12, 14),
+      exo('face-pull', 'Face pull', 4, 10, 12, null),
+      exo('curl-barre', 'Curl biceps barre', 3, 10, 12, null),
+      exo('curl-marteau', 'Curl marteau', 3, 8, 8, 14),
     ],
   },
   {
     id: 'seance-3',
     nom: 'Legs + abdos',
     exercices: [
-      exo('squat', 'Squat', 4, 8, 10, null),
-      exo('presse', 'Presse à cuisses', 4, 10, 12, 130),
-      exo('fentes-bulgares', 'Fentes bulgares', 3, 10, 10, 12, { note: 'par jambe' }),
-      exo('leg-extension', 'Leg extension', 3, 10, 12, 70),
+      exo('pistol-squat', 'Pistol squat', 4, 6, 8, null, { poidsDuCorps: true, note: 'par jambe' }),
+      exo('presse', 'Presse à cuisses', 4, 10, 12, 130, { note: '130 → 100 kg' }),
+      exo('fentes-bulgares', 'Fentes bulgares', 3, 10, 10, 8, { note: 'par jambe' }),
+      exo('leg-extension', 'Leg extension', 3, 10, 12, 80),
       exo('leg-curl', 'Leg curl', 4, 8, 10, 50),
       exo('mollets', 'Extension mollets', 4, 15, 20, 14),
-      exo('gainage', 'Gainage planche', 3, 45, 60, null, { unite: 's', poidsDuCorps: true }),
+      exo('abdos-poulie', 'Abdos poulie', 3, 20, 20, 20),
     ],
   },
   {
     id: 'seance-4',
     nom: 'Push/Pull variation',
     exercices: [
-      exo('dev-halteres', 'Développé haltères', 4, 8, 10, 22),
-      exo('ecarte-poulie', 'Écarté poulie ou développé incliné barre', 3, 10, 12, null),
-      exo('tirage-horizontal-uni', 'Tirage horizontal unilatéral', 4, 10, 12, 85),
-      exo('elevations-frontales', 'Élévations frontales', 3, 12, 12, 8),
+      exo('dev-halteres', 'Développé haltères', 4, 8, 10, 20),
+      exo('ecarte-poulie', 'Écarté poulie ou développé incliné barre', 3, 10, 12, 5),
+      exo('tirage-horizontal-uni', 'Tirage horizontal unilatéral', 4, 10, 12, 75),
+      exo('elevations-frontales', 'Élévations frontales ou delts machine', 3, 12, 12, 8, { note: '20 kg à la machine' }),
       exo('tractions-supination', 'Tractions supination', 3, null, null, null, { poidsDuCorps: true }),
       exo('curl-incline', 'Curl incliné', 3, 10, 12, 10),
     ],
@@ -1299,7 +1301,27 @@ function remplirProgramme() {
     return carte;
   });
   const aide = creer('p', 'texte-secondaire', 'Touche un exercice pour le modifier. Les flèches changent l\'ordre.');
-  document.getElementById('ecran-programme').replaceChildren(aide, ...cartes);
+
+  const remettre = creer('button', 'bouton bouton--secondaire', 'Remettre le programme de départ');
+  remettre.type = 'button';
+  remettre.dataset.reinitialiser = 'oui';
+  const carteDepart = creer('article', 'carte');
+  carteDepart.append(
+    creer('h2', 'exercice__nom', 'Programme de départ'),
+    creer('p', 'carte__texte', `Remplace tout ton programme par celui de départ (mis à jour le ${DATE_PROGRAMME_DEPART} avec tes charges). Ton historique est gardé.`),
+    remettre,
+  );
+  document.getElementById('ecran-programme').replaceChildren(aide, ...cartes, carteDepart);
+}
+
+/** Remplace le programme par le programme de départ ; l'historique et la séance en cours ne bougent pas. */
+function remettreProgrammeDepart() {
+  if (!confirm('Remplacer tout ton programme par le programme de départ ? Tes modifications du programme seront remplacées ; ton historique est gardé.')) return;
+  if (!modifierDonnees((donnees) => {
+    donnees.programme = JSON.parse(JSON.stringify(PROGRAMME_DEPART));
+  })) return;
+  afficherProgramme();
+  afficherMessage('Programme de départ chargé. Ton historique est intact.');
 }
 
 function afficherProgramme() {
@@ -1732,6 +1754,7 @@ function afficherSauvegarde() {
 const ISOLATIONS = new Set([
   'elevations-laterales', 'extension-triceps-poulie', 'face-pull', 'curl-barre', 'curl-marteau',
   'leg-extension', 'leg-curl', 'mollets', 'ecarte-poulie', 'elevations-frontales', 'curl-incline',
+  'militaire-ou-laterales', 'pec-machine', 'abdos-poulie',
 ]);
 // Polyarticulaires lourds : repos plus long
 const LOURDS = new Set(['dev-couche', 'squat', 'rdl', 'presse', 'tirage-vertical', 'rowing', 'dev-halteres', 'tractions-supination']);
@@ -1769,6 +1792,10 @@ const MUSCLES_EXERCICES = {
   'elevations-frontales': ['epaules'],
   'tractions-supination': ['dos', 'biceps'],
   'curl-incline': ['biceps'],
+  'militaire-ou-laterales': ['epaules'],
+  'pec-machine': ['pectoraux'],
+  'pistol-squat': ['quadriceps', 'fessiers'],
+  'abdos-poulie': ['abdos'],
 };
 
 // Exercices ajoutés à la main : muscle deviné d'après le nom
@@ -2615,6 +2642,10 @@ document.getElementById('bouton-programme').addEventListener('click', () => {
 });
 
 document.getElementById('ecran-programme').addEventListener('click', (evenement) => {
+  if (evenement.target.closest('[data-reinitialiser]')) {
+    remettreProgrammeDepart();
+    return;
+  }
   const cible = evenement.target.closest('[data-modifier], [data-deplacer], [data-ajouter]');
   if (!cible) return;
   afficherMessage('');
