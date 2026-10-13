@@ -17,6 +17,19 @@
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
+  <!-- Thème choisi, appliqué avant l'affichage (pas d'éclair sombre au lancement en mode clair) -->
+  <script>
+    try {
+      if (localStorage.getItem('suivi_theme') === 'clair') {
+        document.documentElement.dataset.theme = 'clair';
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f3f3f7');
+        document.querySelector('meta[name="color-scheme"]').setAttribute('content', 'light');
+        document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]').setAttribute('content', 'default');
+      }
+    } catch (e) {
+      // stockage bloqué : thème sombre
+    }
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>

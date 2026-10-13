@@ -21,7 +21,7 @@ Le projet doit rester simple, rapide à ouvrir et utilisable sans connexion.
 - Code lisible, commenté en français quand c'est utile. Fonctions courtes.
 
 ## Style visuel
-Suivre `DESIGN.md` : base Mercury (fond onyx, cartes graphite, texte ivoire, contrôles en pilule) + v2 demandée par Guillaume : une couleur par séance, halo coloré, animations et effets au défilement (désactivés si « Réduire les animations ») + v3 : transitions entre écrans, anneau de la semaine, or réservé aux records, bilan de séance animé. Une seule action principale par écran. Les jetons sont en tête de `style.css`.
+Suivre `DESIGN.md` : base Mercury (fond onyx, cartes graphite, texte ivoire, contrôles en pilule) + v2 demandée par Guillaume : une couleur par séance, halo coloré, animations et effets au défilement (désactivés si « Réduire les animations ») + v3 : transitions entre écrans, anneau de la semaine, or réservé aux records, bilan de séance animé + mode clair au choix (bouton soleil/lune). Une seule action principale par écran. Les jetons sont en tête de `style.css`.
 
 ## Programme de départ
 Données initiales à charger au premier lancement (mises à jour par Guillaume le 13/10/2026). Les poids sont ceux de ses dernières séances ; ils sont modifiables dans l'appli. Un champ vide signifie : je saisis moi-même. Dans l'appli, Programme → « Remettre le programme de départ » recharge ce programme en gardant l'historique.
@@ -108,6 +108,11 @@ Analyse du style des applis de référence (détail dans `DESIGN.md`), puis :
 - **Remplacer un exercice** en séance (« Machine prise ? ») : liste d'alternatives du même muscle principal (exercices du programme + liste `ALTERNATIVES` de l'appli, ids `alt-…`). Pour aujourd'hui seulement. Décision de données : l'exercice de la séance devient `{ exerciceId: <remplaçant>, remplace: <exercice prévu>, series }` ; le remplaçant garde l'objectif de l'exercice prévu ; ses courbes et records sont à part. Un exercice remplacé n'est pas compté comme « sauté » par Sam.
 - **Ressenti** : un par exercice, facultatif, proposé quand toutes les séries sont cochées. Décision de données : champ `ressenti` (`"facile"`, `"correct"` ou `"dur"`) dans l'exercice de la séance. Sam : « dur » au haut de fourchette → garder ; « facile » avec toutes les séries dans la fourchette → monter.
 - **Photos d'évolution** (Mon corps) : face + profil + dos par date, réduites à 900 px (JPEG), comparaison avant/après par pose avec le poids du moment. Décision : rangées dans IndexedDB (base `suivi_photos`, trop lourdes pour localStorage), **incluses dans la sauvegarde exportée** (champ `photos: [{ id, date, pose, image }]`), vérifiées à l'import (photos absentes du fichier = celles du téléphone gardées ; photos d'avant import gardées en copie de secours). Jamais envoyées à Sam ni à Claude.
+
+## Mode clair (13/10/2026, demandé par Guillaume)
+- Bouton soleil/lune en haut à droite de l'accueil : bascule sombre ⇄ clair, le nouveau thème s'étend en cercle depuis le bouton (immédiat si « Réduire les animations »). Sombre par défaut.
+- Choix gardé dans `suivi_theme` (`"clair"` ou `"sombre"`) : préférence du téléphone, hors de `suivi_donnees`, donc ni exportée ni importée. Petit script dans `index.html` qui applique le thème avant l'affichage.
+- Couleurs du mode clair : jetons dans `style.css` (`:root[data-theme="clair"]`), détail dans `DESIGN.md`.
 
 ## Fonctionnalités — version 2 (plus tard, ne pas faire d'office)
 - Notes par séance (fatigue, sommeil, douleurs).

@@ -332,7 +332,7 @@ function lancerConfettis(classeTeinte) {
   if (mouvementReduit.matches || !Element.prototype.animate) return;
   const conteneur = creer('div', `confettis ${classeTeinte}`);
   conteneur.setAttribute('aria-hidden', 'true');
-  const couleurs = ['var(--accent)', 'var(--accent-clair)', '#ededf3', 'var(--accent-fort)'];
+  const couleurs = ['var(--accent)', 'var(--accent-clair)', 'var(--couleur-texte)', 'var(--accent-fort)'];
   for (let i = 0; i < 70; i++) {
     const confetti = creer('span', 'confetti');
     confetti.style.background = couleurs[i % couleurs.length];
@@ -606,6 +606,8 @@ function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil', classe
     if (classeTeinte) document.body.classList.add(classeTeinte);
     const enSeance = nom === 'seance';
     if (!enSeance) document.getElementById('bandeau-record')?.classList.remove('bandeau-record--visible');
+    const boutonTheme = document.getElementById('bouton-theme');
+    if (boutonTheme) boutonTheme.hidden = nom !== 'accueil';
     garderEcranAllume(Boolean(etat.donnees.enCours));
     document.getElementById('compteur-seance').hidden = !enSeance;
     document.getElementById('avancement-seance').hidden = !enSeance;
@@ -622,6 +624,64 @@ function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil', classe
   };
   if (memeEcran) appliquer();
   else transitionEcran(appliquer);
+}
+
+/* ---------- Thème clair / sombre ---------- */
+
+// Préférence de ce téléphone : hors de suivi_donnees, donc ni exportée ni importée
+const CLE_THEME = 'suivi_theme';
+const COULEUR_BARRE = { sombre: '#171721', clair: '#f3f3f7' };
+const ICONE_SOLEIL = '<svg class="icone-soleil" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const ICONE_LUNE = '<svg class="icone-lune" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+const themeActuel = () => (document.documentElement.dataset.theme === 'clair' ? 'clair' : 'sombre');
+
+/** Applique un thème : couleurs (CSS), barre du navigateur, libellé du bouton. */
+function appliquerTheme(theme) {
+  if (theme === 'clair') document.documentElement.dataset.theme = 'clair';
+  else delete document.documentElement.dataset.theme;
+  const couleurBarre = document.querySelector('meta[name="theme-color"]');
+  if (couleurBarre) couleurBarre.setAttribute('content', COULEUR_BARRE[theme]);
+  const schema = document.querySelector('meta[name="color-scheme"]');
+  if (schema) schema.setAttribute('content', theme === 'clair' ? 'light' : 'dark');
+  const bouton = document.getElementById('bouton-theme');
+  if (bouton) bouton.setAttribute('aria-label', theme === 'clair' ? 'Passer en mode sombre' : 'Passer en mode clair');
+}
+
+/** Bouton soleil/lune de la barre du haut (créé ici : la page en cache peut être plus ancienne). */
+function creerBoutonTheme() {
+  const bouton = creer('button', 'bouton-icone bouton-theme');
+  bouton.id = 'bouton-theme';
+  bouton.type = 'button';
+  bouton.insertAdjacentHTML('beforeend', ICONE_SOLEIL + ICONE_LUNE);
+  document.querySelector('.barre__contenu').append(bouton);
+  appliquerTheme(themeActuel());
+  return bouton;
+}
+
+/** Passe au thème opposé, retenu pour les prochaines ouvertures ; le nouveau thème s'étend depuis le bouton. */
+function basculerTheme(bouton) {
+  const theme = themeActuel() === 'clair' ? 'sombre' : 'clair';
+  try {
+    localStorage.setItem(CLE_THEME, theme);
+  } catch {
+    // stockage indisponible : le thème vaut pour cette ouverture seulement
+  }
+  if (!document.startViewTransition || mouvementReduit.matches || document.visibilityState !== 'visible') {
+    appliquerTheme(theme);
+    return;
+  }
+  const cadre = bouton.getBoundingClientRect();
+  const x = cadre.left + cadre.width / 2;
+  const y = cadre.top + cadre.height / 2;
+  const racine = document.documentElement;
+  racine.style.setProperty('--theme-x', `${x}px`);
+  racine.style.setProperty('--theme-y', `${y}px`);
+  racine.style.setProperty('--theme-r', `${Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))}px`);
+  racine.dataset.transition = 'theme';
+  const transition = document.startViewTransition(() => appliquerTheme(theme));
+  transition.ready.catch(() => {});
+  transition.finished.finally(() => delete racine.dataset.transition);
 }
 
 /* ---------- Transitions entre écrans ---------- */
@@ -4865,6 +4925,9 @@ document.getElementById('liste-seances').addEventListener('click', (evenement) =
 });
 
 document.getElementById('bouton-retour').addEventListener('click', retour);
+
+const boutonTheme = creerBoutonTheme();
+boutonTheme.addEventListener('click', () => basculerTheme(boutonTheme));
 
 document.getElementById('ecran-accueil').addEventListener('click', (evenement) => {
   if (evenement.target.closest('[data-action="sauvegarder-rappel"]')) exporterDonnees();

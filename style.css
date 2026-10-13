@@ -20,6 +20,25 @@
   --couleur-action: #5266eb;            /* Cobalt : action principale uniquement */
   --couleur-sur-action: #ffffff;        /* Pure White : texte sur cobalt */
 
+  /* Couleurs qui changent avec le thème (sombre ici, clair plus bas) */
+  --voile: 255 255 255;                 /* voiles et traits neutres : blanc sur fond sombre */
+  --reflet: 255 255 255;                /* reflet d'un exercice terminé */
+  --fond-rgb: 23 23 33;                 /* fond en composantes, pour les verres dépolis */
+  --carte-rgb: 30 30 42;
+  --carte-teintee: #26264a;             /* haut des cartes « Cette semaine » et rappel */
+  --controle-focus: #2e2e42;
+  --ombre-forte: rgb(0 0 0 / 0.8);
+  --aurore-opacite: 1;
+  --halo-teinte: 0.32;
+  --sur-or: #171721;                    /* texte sur l'or des records, dans les deux thèmes */
+  --scene: #14141c;                     /* fond des démos */
+  --meuble: #33334a;
+  --meuble-trait: #3a3a50;
+  --os-loin: #767688;
+  --cable: #a3a3b4;
+  --levier: #4a4a64;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23ededf3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
   /* Police système : rien à télécharger, l'appli reste hors ligne */
   --police: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --graisse-normale: 400;
@@ -92,6 +111,64 @@
   --accent-degrade: linear-gradient(135deg, #8f3388, #7339a8);
 }
 
+/* ---------- Mode clair (choisi par Guillaume avec le bouton soleil/lune) ----------
+   Même structure, valeurs inversées : fond gris très clair, cartes blanches, texte encre.
+   Contrastes vérifiés : texte 15:1, texte atténué 6,6:1, accents des séances ≥ 4,4:1 sur le fond. */
+:root[data-theme="clair"] {
+  color-scheme: light;
+  --couleur-fond: #f3f3f7;
+  --couleur-carte: #ffffff;
+  --couleur-controle: #e9e9f0;
+  --couleur-bordure: #8a8a9a;
+  --couleur-bordure-claire: #c9cad6;
+  --couleur-texte: #1b1b26;
+  --couleur-texte-secondaire: #555566;
+  --couleur-action: #4a5ce0;
+
+  --voile: 24 24 48;
+  --reflet: 82 98 234;
+  --fond-rgb: 243 243 247;
+  --carte-rgb: 255 255 255;
+  --carte-teintee: #e8eaff;
+  --controle-focus: #dedee9;
+  --ombre-forte: rgb(24 24 48 / 0.18);
+  --aurore-opacite: 0.45;
+  --halo-teinte: 0.2;
+  --scene: #ececf3;
+  --meuble: #c8cad8;
+  --meuble-trait: #b4b7c8;
+  --os-loin: #9a9aae;
+  --cable: #7c7c90;
+  --levier: #aeb0c3;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%231b1b26' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* Couleurs des séances un ton plus soutenu : lisibles sur fond blanc (≥ 4,4:1) */
+:root[data-theme="clair"],
+:root[data-theme="clair"] .teinte-1 {
+  --accent: #5262ea;
+  --accent-clair: #7d8bff;
+  --accent-fort: #3f51d9;
+}
+
+:root[data-theme="clair"] .teinte-2 {
+  --accent: #13805a;
+  --accent-clair: #2fae82;
+  --accent-fort: #0f6e4d;
+}
+
+:root[data-theme="clair"] .teinte-3 {
+  --accent: #c24a1a;
+  --accent-clair: #e5713f;
+  --accent-fort: #a8401a;
+}
+
+:root[data-theme="clair"] .teinte-4 {
+  --accent: #9c3a96;
+  --accent-clair: #c35dbb;
+  --accent-fort: #85307f;
+}
+
 /* ---------- Base ---------- */
 *,
 *::before,
@@ -157,10 +234,10 @@ p {
 }
 
 body.defile .barre {
-  background: rgb(23 23 33 / 0.88);
+  background: rgb(var(--fond-rgb) / 0.88);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  border-bottom-color: rgb(255 255 255 / 0.06);
+  border-bottom-color: rgb(var(--voile) / 0.06);
 }
 
 .barre__contenu {
@@ -481,7 +558,7 @@ body.defile .barre {
   padding: 0 var(--esp-40) 0 var(--esp-20);
   font-size: var(--texte-corps);
   text-align: left;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23ededf3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: var(--chevron);
   background-position: right 16px center;
   background-size: 20px 20px;
   background-repeat: no-repeat;
@@ -780,6 +857,7 @@ body::after {
 }
 
 body::before {
+  opacity: var(--aurore-opacite);
   background:
     radial-gradient(closest-side at 28% 45%, rgb(82 102 235 / 0.42), transparent),
     radial-gradient(closest-side at 74% 35%, rgb(124 79 220 / 0.34), transparent),
@@ -798,7 +876,7 @@ body.teinte-1::after,
 body.teinte-2::after,
 body.teinte-3::after,
 body.teinte-4::after {
-  opacity: 0.32;
+  opacity: var(--halo-teinte);
 }
 
 @keyframes aurore {
@@ -829,7 +907,7 @@ body.defile .barre__titre {
   margin-left: auto;
   padding: var(--esp-4) var(--esp-12);
   border-radius: var(--rayon-pilule);
-  background: rgb(255 255 255 / 0.08);
+  background: rgb(var(--voile) / 0.08);
   font-size: var(--texte-petit);
   font-variant-numeric: tabular-nums;
 }
@@ -840,7 +918,7 @@ body.defile .barre__titre {
   right: 0;
   bottom: -1px;
   height: 3px;
-  background: rgb(255 255 255 / 0.06);
+  background: rgb(var(--voile) / 0.06);
 }
 
 .barre__avancement span {
@@ -855,8 +933,8 @@ body.defile .barre__titre {
 
 /* Message : arrive en rebondissant */
 .message {
-  background: rgb(30 30 42 / 0.92);
-  border-color: rgb(255 255 255 / 0.14);
+  background: rgb(var(--carte-rgb) / 0.92);
+  border-color: rgb(var(--voile) / 0.14);
   animation: message-entree 0.45s var(--courbe-rebond);
 }
 
@@ -890,7 +968,7 @@ body.defile .barre__titre {
 .semaine {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(160deg, #26264a 0%, var(--couleur-carte) 65%);
+  background: linear-gradient(160deg, var(--carte-teintee) 0%, var(--couleur-carte) 65%);
 }
 
 .semaine__haut {
@@ -932,7 +1010,7 @@ body.defile .barre__titre {
   gap: 6px;
   padding: 2px 10px 2px 8px;
   border-radius: var(--rayon-pilule);
-  background: rgb(255 255 255 / 0.07);
+  background: rgb(var(--voile) / 0.07);
   font-size: var(--texte-legende);
 }
 
@@ -971,7 +1049,7 @@ body.defile .barre__titre {
 }
 
 .anneau__piste {
-  stroke: rgb(255 255 255 / 0.08);
+  stroke: rgb(var(--voile) / 0.08);
 }
 
 /* L'arc se trace jusqu'à sa valeur (posée par le script) */
@@ -1031,7 +1109,7 @@ body.defile .barre__titre {
   min-width: 0;
   padding: var(--esp-12);
   border-radius: var(--rayon-carte);
-  background: rgb(255 255 255 / 0.05);
+  background: rgb(var(--voile) / 0.05);
 }
 
 .stat__ligne {
@@ -1123,7 +1201,7 @@ body.defile .barre__titre {
   margin-top: var(--esp-8);
   overflow: hidden;
   border-radius: var(--rayon-pilule);
-  background: rgb(255 255 255 / 0.08);
+  background: rgb(var(--voile) / 0.08);
 }
 
 .seance__jauge span {
@@ -1219,7 +1297,7 @@ body.defile .barre__titre {
   flex: none;
   padding: var(--esp-4) var(--esp-12);
   border-radius: var(--rayon-pilule);
-  background: rgb(255 255 255 / 0.08);
+  background: rgb(var(--voile) / 0.08);
   font-size: var(--texte-petit);
   font-variant-numeric: tabular-nums;
   transition: background-color 0.3s;
@@ -1240,7 +1318,7 @@ body.defile .barre__titre {
 }
 
 .champ:focus {
-  background: #2e2e42;
+  background: var(--controle-focus);
 }
 
 .pop {
@@ -1254,7 +1332,7 @@ body.defile .barre__titre {
 }
 
 @keyframes respire {
-  50% { box-shadow: 0 0 0 6px rgb(255 255 255 / 0.08), 0 12px 40px -8px var(--accent); }
+  50% { box-shadow: 0 0 0 6px rgb(var(--voile) / 0.08), 0 12px 40px -8px var(--accent); }
 }
 
 /* Programme : titre de carte avec pastille */
@@ -1420,7 +1498,7 @@ body.defile .barre__titre {
   height: 8px;
   overflow: hidden;
   border-radius: var(--rayon-pilule);
-  background: rgb(255 255 255 / 0.08);
+  background: rgb(var(--voile) / 0.08);
 }
 
 .muscle__jauge span {
@@ -1456,9 +1534,9 @@ body.defile .barre__titre {
   gap: var(--esp-8);
   margin-top: var(--esp-8);
   padding: var(--esp-4) var(--esp-4) var(--esp-4) var(--esp-12);
-  border: 1px solid rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(var(--voile) / 0.08);
   border-radius: var(--rayon-pilule);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(var(--voile) / 0.04);
   font-size: var(--texte-petit);
 }
 
@@ -1613,7 +1691,7 @@ body.defile .barre__titre {
 .suggestion {
   min-height: 44px;
   padding: var(--esp-8) var(--esp-16);
-  border: 1px solid rgb(255 255 255 / 0.18);
+  border: 1px solid rgb(var(--voile) / 0.18);
   border-radius: var(--rayon-pilule);
   background: transparent;
   color: var(--couleur-texte);
@@ -1639,9 +1717,9 @@ body.defile .barre__titre {
   gap: var(--esp-8);
   margin-top: var(--esp-8);
   padding: var(--esp-8);
-  border: 1px solid rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(var(--voile) / 0.08);
   border-radius: var(--rayon-pilule);
-  background: rgb(23 23 33 / 0.92);
+  background: rgb(var(--fond-rgb) / 0.92);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
@@ -1702,12 +1780,12 @@ body.defile .barre__titre {
   margin: 0 auto;
   padding: var(--esp-12) var(--esp-12) var(--esp-12) var(--esp-20);
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 0.1);
+  border: 1px solid rgb(var(--voile) / 0.1);
   border-radius: 24px;
-  background: rgb(30 30 42 / 0.94);
+  background: rgb(var(--carte-rgb) / 0.94);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
-  box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.8);
+  box-shadow: 0 16px 40px -16px var(--ombre-forte);
   animation: message-entree 0.4s var(--courbe-rebond);
 }
 
@@ -1797,7 +1875,7 @@ body.avec-minuteur .page {
   margin-top: var(--esp-12);
   padding: var(--esp-16);
   border-radius: var(--rayon-carte);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(var(--voile) / 0.04);
   animation: message-entree 0.3s var(--courbe);
 }
 
@@ -1867,12 +1945,12 @@ body.avec-minuteur .page {
 }
 
 .zone-neutre {
-  fill: rgb(255 255 255 / 0.05);
+  fill: rgb(var(--voile) / 0.05);
 }
 
 /* Une seule teinte, de plus en plus soutenue (0 · 1-4 · 5-9 · 10+ séries) */
 .zone-muscle--n0 {
-  fill: rgb(255 255 255 / 0.1);
+  fill: rgb(var(--voile) / 0.1);
 }
 
 .zone-muscle--n1 {
@@ -1916,7 +1994,7 @@ body.avec-minuteur .page {
   border-radius: 3px;
 }
 
-.pastille-niveau.zone-muscle--n0 { background: rgb(255 255 255 / 0.1); }
+.pastille-niveau.zone-muscle--n0 { background: rgb(var(--voile) / 0.1); }
 .pastille-niveau.zone-muscle--n1 { background: rgb(107 124 255 / 0.35); }
 .pastille-niveau.zone-muscle--n2 { background: rgb(107 124 255 / 0.65); }
 .pastille-niveau.zone-muscle--n3 { background: #6b7cff; }
@@ -2032,9 +2110,13 @@ body.avec-minuteur .page {
 .onde {
   position: absolute;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(255 255 255 / 0.4), rgb(255 255 255 / 0));
+  background: radial-gradient(closest-side, rgb(var(--voile) / 0.35), rgb(var(--voile) / 0));
   transform: scale(0);
   pointer-events: none;
+}
+
+.bouton--principal .onde {
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0));
 }
 
 /* ---------- Accueil ---------- */
@@ -2108,7 +2190,7 @@ body.avec-minuteur .page {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.1) 50%, transparent 70%);
+  background: linear-gradient(105deg, transparent 30%, rgb(var(--reflet) / 0.1) 50%, transparent 70%);
   pointer-events: none;
   animation: balayage 1s var(--courbe) both;
 }
@@ -2128,7 +2210,7 @@ body.avec-minuteur .page {
   background: var(--or-degrade);
   background-size: 200% 200%;
   box-shadow: 0 0 12px -2px rgb(245 184 46 / 0.7);
-  color: var(--couleur-fond);
+  color: var(--sur-or);
   font-size: var(--texte-legende);
   font-weight: var(--graisse-accent);
   animation: reflet-or 2.4s ease-in-out infinite;
@@ -2137,6 +2219,7 @@ body.avec-minuteur .page {
 .serie--record .coche input:checked + .coche__boite {
   border-color: var(--or);
   background: var(--or-degrade);
+  color: var(--sur-or);
   box-shadow: 0 0 20px -4px var(--or);
 }
 
@@ -2180,7 +2263,7 @@ body.avec-minuteur .page {
   border-radius: var(--rayon-pilule);
   background: var(--or-degrade);
   box-shadow: 0 16px 40px -12px rgb(245 184 46 / 0.65);
-  color: var(--couleur-fond);
+  color: var(--sur-or);
   opacity: 0;
   transform: translate(-50%, -160%);
   transition: transform 0.55s var(--courbe-rebond), opacity 0.3s;
@@ -2313,7 +2396,7 @@ body.avec-minuteur .page {
   margin-top: var(--esp-8);
   padding: var(--esp-4) var(--esp-12);
   border-radius: var(--rayon-pilule);
-  background: rgb(255 255 255 / 0.08);
+  background: rgb(var(--voile) / 0.08);
   font-size: var(--texte-petit);
 }
 
@@ -2359,7 +2442,7 @@ body.avec-minuteur .page {
   border-radius: 50%;
   background: var(--or-degrade);
   box-shadow: 0 6px 18px -6px var(--or);
-  color: var(--couleur-fond);
+  color: var(--sur-or);
 }
 
 .liste-records__texte {
@@ -2394,7 +2477,7 @@ body.avec-minuteur .page {
 }
 
 .bouton-demo[aria-expanded="true"] {
-  background: rgb(255 255 255 / 0.12);
+  background: rgb(var(--voile) / 0.12);
 }
 
 .demo__variantes .pastille {
@@ -2410,7 +2493,7 @@ body.avec-minuteur .page {
   margin-top: var(--esp-12);
   padding: var(--esp-12);
   border-radius: var(--rayon-carte);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(var(--voile) / 0.04);
   animation: message-entree 0.3s var(--courbe);
 }
 
@@ -2420,8 +2503,8 @@ body.avec-minuteur .page {
   overflow: hidden;
   border-radius: 10px;
   background:
-    radial-gradient(70% 45% at 50% 100%, rgb(255 255 255 / 0.07), transparent 70%),
-    #14141c;
+    radial-gradient(70% 45% at 50% 100%, rgb(var(--voile) / 0.07), transparent 70%),
+    var(--scene);
 }
 
 .demo__figure--fixe {
@@ -2445,18 +2528,18 @@ body.avec-minuteur .page {
 }
 
 .demo__sol {
-  stroke: rgb(255 255 255 / 0.14);
+  stroke: rgb(var(--voile) / 0.14);
   stroke-width: 2;
 }
 
 .demo__meuble {
   fill: none;
-  stroke: #3a3a50;
+  stroke: var(--meuble-trait);
   stroke-linecap: round;
 }
 
 .demo__meuble--plein {
-  fill: #33334a;
+  fill: var(--meuble);
   stroke: none;
 }
 
@@ -2471,7 +2554,7 @@ body.avec-minuteur .page {
 }
 
 .os--loin {
-  stroke: #767688;
+  stroke: var(--os-loin);
 }
 
 .os--buste { stroke-width: 16; }
@@ -2510,18 +2593,18 @@ body.avec-minuteur .page {
 }
 
 .demo__cable {
-  stroke: #a3a3b4;
+  stroke: var(--cable);
   stroke-width: 1.5;
 }
 
 .demo__poulie {
-  fill: #14141c;
-  stroke: #a3a3b4;
+  fill: var(--scene);
+  stroke: var(--cable);
   stroke-width: 2.5;
 }
 
 .demo__levier {
-  stroke: #4a4a64;
+  stroke: var(--levier);
   stroke-width: 7;
   stroke-linecap: round;
 }
@@ -2562,7 +2645,7 @@ body.avec-minuteur .page {
   flex-direction: column;
   gap: var(--esp-8);
   border: 1px solid rgb(154 166 255 / 0.35);
-  background: linear-gradient(160deg, #23234a 0%, var(--couleur-carte) 70%);
+  background: linear-gradient(160deg, var(--carte-teintee) 0%, var(--couleur-carte) 70%);
 }
 
 .rappel__haut {
@@ -2618,7 +2701,7 @@ body.avec-minuteur .page {
   margin-top: var(--esp-8);
   padding: var(--esp-12);
   border-radius: var(--rayon-carte);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(var(--voile) / 0.04);
   animation: message-entree 0.3s var(--courbe);
 }
 
@@ -2644,7 +2727,7 @@ body.avec-minuteur .page {
   width: 100%;
   min-height: var(--cible-min);
   padding: var(--esp-12) var(--esp-16);
-  border: 1px solid rgb(255 255 255 / 0.12);
+  border: 1px solid rgb(var(--voile) / 0.12);
   border-radius: var(--rayon-carte);
   background: var(--couleur-controle);
   color: var(--couleur-texte);
@@ -2699,9 +2782,9 @@ body.avec-minuteur .page {
   gap: var(--esp-4);
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  border: 1.5px dashed rgb(255 255 255 / 0.25);
+  border: 1.5px dashed rgb(var(--voile) / 0.25);
   border-radius: var(--rayon-carte);
-  background: rgb(255 255 255 / 0.03);
+  background: rgb(var(--voile) / 0.03);
   cursor: pointer;
   transition: transform 0.15s var(--courbe), border-color 0.2s;
 }
@@ -2746,6 +2829,7 @@ body.avec-minuteur .page {
   bottom: 0;
   padding: var(--esp-16) var(--esp-4) var(--esp-4);
   background: linear-gradient(transparent, rgb(0 0 0 / 0.75));
+  color: #ffffff;
   font-size: var(--texte-legende);
   text-align: center;
 }
@@ -2756,7 +2840,7 @@ body.avec-minuteur .page {
   gap: var(--esp-12);
   margin-bottom: var(--esp-16);
   padding-top: var(--esp-16);
-  border-top: 1px solid rgb(255 255 255 / 0.08);
+  border-top: 1px solid rgb(var(--voile) / 0.08);
 }
 
 .comparaison__titre {
@@ -2808,7 +2892,7 @@ body.avec-minuteur .page {
   display: grid;
   place-items: center;
   padding: var(--esp-12);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(var(--voile) / 0.04);
   font-size: var(--texte-legende);
   color: var(--couleur-texte-secondaire);
   text-align: center;
@@ -2818,6 +2902,50 @@ body.avec-minuteur .page {
   font-size: var(--texte-legende);
   color: var(--couleur-texte-secondaire);
   text-align: center;
+}
+
+/* ---------- Bouton du thème (soleil / lune) ---------- */
+.bouton-theme {
+  margin-left: auto;
+  margin-right: calc(-1 * var(--esp-12));
+  transition: background-color 0.2s;
+}
+
+.bouton-theme svg {
+  transition: transform 0.5s var(--courbe-rebond), opacity 0.3s;
+}
+
+/* Sombre : le soleil propose le mode clair ; clair : la lune propose le mode sombre */
+.bouton-theme .icone-lune,
+:root[data-theme="clair"] .bouton-theme .icone-soleil {
+  display: none;
+}
+
+:root[data-theme="clair"] .bouton-theme .icone-lune {
+  display: block;
+}
+
+.bouton-theme:active svg {
+  transform: rotate(-30deg) scale(0.85);
+}
+
+/* Bascule de thème : le nouveau thème s'étend en cercle depuis le bouton */
+:root[data-transition="theme"] .barre,
+:root[data-transition="theme"] .minuteur {
+  view-transition-name: none;
+}
+
+:root[data-transition="theme"]::view-transition-old(root) {
+  animation: none;
+}
+
+:root[data-transition="theme"]::view-transition-new(root) {
+  animation: revele-theme 0.6s var(--courbe) both;
+}
+
+@keyframes revele-theme {
+  from { clip-path: circle(0 at var(--theme-x, 50%) var(--theme-y, 0)); }
+  to { clip-path: circle(var(--theme-r, 150%) at var(--theme-x, 50%) var(--theme-y, 0)); }
 }
 
 /* ---------- Effets au défilement (navigateurs qui savent les lier au scroll) ---------- */

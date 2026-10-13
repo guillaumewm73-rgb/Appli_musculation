@@ -49,6 +49,24 @@ Règles v3 :
 
 **Démos de mouvement** : mannequin de profil (de face pour les élévations latérales et l'écarté), traits arrondis épais, côté proche ivoire `#ededf3`, côté loin `#767688` pour la profondeur, machines et bancs en `#33334a`, charge (disque, haltère, poignée) dans la couleur de la séance, câbles en gris clair, trajet de la charge en pointillés. Scène sur fond `#14141c`, recadrée sur le mouvement. Aller 1 s, pause 0,35 s, retour 1,15 s, pause 0,4 s.
 
+## Mode clair (au choix, bouton soleil/lune de l'accueil)
+
+Même structure que le thème sombre, valeurs inversées (jetons `:root[data-theme="clair"]` dans `style.css`) :
+
+| Rôle | Sombre | Clair | Contraste (clair) |
+|---|---|---|---|
+| Fond | `#171721` | `#f3f3f7` | — |
+| Carte | `#1e1e2a` | `#ffffff` | — |
+| Contrôle (champs) | `#272735` | `#e9e9f0` | — |
+| Texte | `#ededf3` | `#1b1b26` | 15:1 sur le fond |
+| Texte atténué | `#c3c3cc` | `#555566` | 6,6:1 sur le fond |
+| Push / Pull / Legs / Variation | `#6b7cff` `#199e70` `#d95926` `#ac43a5` | `#5262ea` `#13805a` `#c24a1a` `#9c3a96` | ≥ 4,4:1 sur le fond |
+
+- Les voiles et traits neutres (pistes, pastilles, séparateurs) passent du blanc translucide à l'encre translucide (`--voile`).
+- L'or des records ne change pas ; le texte et la coche posés dessus restent onyx (`--sur-or`).
+- Le halo du haut est atténué (45 %), les démos passent sur fond gris clair avec un mannequin encre.
+- Les dégradés des boutons gardent leur texte blanc (≥ 4,5:1) dans les deux thèmes.
+
 ## Règles appliquées (v1)
 
 | Mercury | Dans l'appli |
