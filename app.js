@@ -3,7 +3,8 @@
    Étape 2 : programme de départ + écran d'accueil.
    Étape 3 : écran de séance (saisie, cases à cocher, enregistrement).
    Étape 4 : historique (liste, détail, suppression).
-   Étape 5 : progression (courbe SVG du meilleur poids). */
+   Étape 5 : progression (courbe SVG du meilleur poids).
+   Étape 6 : édition du programme. */
 'use strict';
 
 /* ---------- Programme de départ ---------- */
@@ -155,6 +156,8 @@ function chargerDonnees() {
 /* ---------- Outils ---------- */
 
 const ICONE_FLECHE = '<svg class="seance__fleche" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICONE_HAUT = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICONE_BAS = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICONE_COCHE = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** "2026-10-13T18:30" → "13/10/2026" (chaîne vide si format inconnu). */
@@ -311,7 +314,7 @@ function enregistrer() {
 
 /* ---------- Écrans ---------- */
 
-const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression'];
+const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice'];
 
 /** Affiche un écran : titre, bouton retour, focus pour les lecteurs d'écran. */
 function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil') {
@@ -713,6 +716,7 @@ function retour() {
   afficherMessage('');
   if (etat.ecran === 'seance') retourAccueil();
   else if (etat.ecran === 'detail') afficherHistorique();
+  else if (etat.ecran === 'exercice') afficherProgramme();
   else afficherAccueil();
 }
 
@@ -975,6 +979,253 @@ function afficherProgression() {
   majProgression(); // après l'affichage : la courbe a besoin de la largeur réelle
 }
 
+/* ---------- Édition du programme ---------- */
+
+/** Applique une modification et l'enregistre ; si l'écriture échoue, tout revient comme avant. */
+function modifierDonnees(modification) {
+  const avant = JSON.stringify(etat.donnees);
+  modification(etat.donnees);
+  if (!etat.enregistrable || ecrireDonnees(etat.donnees)) return true;
+  etat.donnees = JSON.parse(avant);
+  alert('Stockage de l\'appli plein : modification non enregistrée.');
+  return false;
+}
+
+/** Identifiant lisible et unique dans le programme : « Hip thrust » → « hip-thrust ». */
+function nouvelIdExercice(nom) {
+  const base = nom.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'exercice';
+  const pris = new Set(etat.donnees.programme.flatMap((s) => s.exercices.filter(Boolean).map((e) => e.id)));
+  let id = base;
+  for (let n = 2; pris.has(id); n++) id = `${base}-${n}`;
+  return id;
+}
+
+/** Petit bouton rond à icône (flèches de l'ordre). */
+function creerBoutonIcone(icone, libelle, donnees) {
+  const bouton = creer('button', 'bouton-icone bouton-icone--petit');
+  bouton.type = 'button';
+  bouton.setAttribute('aria-label', libelle);
+  Object.assign(bouton.dataset, donnees);
+  bouton.insertAdjacentHTML('beforeend', icone);
+  return bouton;
+}
+
+/** Ligne d'exercice : nom + objectif (ouvre le formulaire), flèches monter / descendre. */
+function creerLigneProgramme(seance, exercice, i, total) {
+  const ouvrir = creer('button', 'programme-ligne__exercice');
+  ouvrir.type = 'button';
+  ouvrir.dataset.modifier = exercice.id;
+  ouvrir.dataset.seance = seance.id;
+  ouvrir.append(creer('span', 'programme-ligne__nom', exercice.nom), creer('span', 'programme-ligne__cible', texteCible(exercice)));
+
+  const monter = creerBoutonIcone(ICONE_HAUT, `Monter ${exercice.nom}`, { deplacer: exercice.id, sens: '-1', seance: seance.id });
+  const descendre = creerBoutonIcone(ICONE_BAS, `Descendre ${exercice.nom}`, { deplacer: exercice.id, sens: '1', seance: seance.id });
+  monter.disabled = i === 0;
+  descendre.disabled = i === total - 1;
+
+  const ligne = creer('li', 'programme-ligne');
+  ligne.append(ouvrir, monter, descendre);
+  return ligne;
+}
+
+/** Contenu de l'écran Programme (sans changer d'écran ni de position de défilement). */
+function remplirProgramme() {
+  const cartes = etat.donnees.programme.map((seance, s) => {
+    const exercices = seance.exercices.filter(Boolean);
+    const liste = creer('ol', 'programme-liste');
+    liste.append(...exercices.map((ex, i) => creerLigneProgramme(seance, ex, i, exercices.length)));
+    const ajouter = creer('button', 'bouton bouton--secondaire', 'Ajouter un exercice');
+    ajouter.type = 'button';
+    ajouter.dataset.ajouter = seance.id;
+    const carte = creer('article', 'carte');
+    carte.append(creer('h2', 'exercice__nom', `Séance ${s + 1} · ${seance.nom}`), liste, ajouter);
+    return carte;
+  });
+  const aide = creer('p', 'texte-secondaire', 'Touche un exercice pour le modifier. Les flèches changent l\'ordre.');
+  document.getElementById('ecran-programme').replaceChildren(aide, ...cartes);
+}
+
+function afficherProgramme() {
+  remplirProgramme();
+  montrerEcran('programme', 'Programme');
+}
+
+/** Change l'ordre d'un exercice dans sa séance. */
+function deplacerExercice(seanceId, exerciceId, sens) {
+  modifierDonnees((donnees) => {
+    const exercices = donnees.programme.find((s) => s.id === seanceId).exercices;
+    const i = exercices.findIndex((e) => e && e.id === exerciceId);
+    const j = i + sens;
+    if (i < 0 || j < 0 || j >= exercices.length) return;
+    [exercices[i], exercices[j]] = [exercices[j], exercices[i]];
+  });
+  remplirProgramme();
+  // Garde le focus sur la flèche de l'exercice déplacé pour enchaîner les déplacements
+  const selecteur = `[data-deplacer="${CSS.escape(exerciceId)}"]`;
+  const meme = document.querySelector(`${selecteur}[data-sens="${sens}"]`);
+  const cible = meme && !meme.disabled ? meme : document.querySelector(`${selecteur}:not(:disabled)`);
+  if (cible) cible.focus();
+}
+
+/** Champ de formulaire avec son label visible. */
+function creerChampFormulaire(nom, libelle, valeur, options = {}) {
+  const input = creer('input', 'champ champ--formulaire');
+  input.id = `champ-${nom}`;
+  input.name = nom;
+  input.type = 'text';
+  input.autocomplete = 'off';
+  input.value = valeur ?? '';
+  if (options.clavier) input.inputMode = options.clavier;
+  if (options.indice) input.placeholder = options.indice;
+  if (options.max) input.maxLength = options.max;
+  const label = creer('label', 'etiquette', libelle);
+  label.htmlFor = input.id;
+  const bloc = creer('div', 'formulaire__champ');
+  bloc.append(label, input);
+  return bloc;
+}
+
+/** Bouton radio ou case en pastille. */
+function creerPastille(type, nom, valeur, libelle, coche) {
+  const input = document.createElement('input');
+  input.type = type;
+  input.name = nom;
+  input.value = valeur;
+  input.checked = coche;
+  const label = creer('label', 'pastille');
+  label.append(input, creer('span', '', libelle));
+  return label;
+}
+
+/** Formulaire d'ajout ou de modification d'un exercice. */
+function afficherFormulaireExercice(seanceId, exerciceId) {
+  const seance = trouverSeance(seanceId);
+  if (!seance) return;
+  const exercice = exerciceId ? trouverExercice(seance, exerciceId) : null;
+  const v = exercice || { nom: '', series: 3, repsMin: 8, repsMax: 12, poidsDefaut: null, unite: 'reps', poidsDuCorps: false, note: '' };
+
+  const form = creer('form', 'formulaire');
+  form.noValidate = true;
+  form.dataset.seance = seance.id;
+  if (exercice) form.dataset.exercice = exercice.id;
+
+  const erreur = creer('p', 'message');
+  erreur.id = 'erreur-formulaire';
+  erreur.setAttribute('role', 'alert');
+  erreur.hidden = true;
+
+  const ligneSeries = creer('div', 'formulaire__ligne');
+  ligneSeries.append(creerChampFormulaire('series', 'Séries', v.series, { clavier: 'numeric' }));
+  const ligneReps = creer('div', 'formulaire__ligne');
+  ligneReps.append(
+    creerChampFormulaire('repsMin', 'Reps min', v.repsMin, { clavier: 'numeric', indice: 'max' }),
+    creerChampFormulaire('repsMax', 'Reps max', v.repsMax, { clavier: 'numeric', indice: 'max' }),
+  );
+
+  const unite = creer('fieldset', 'formulaire__choix');
+  unite.append(
+    creer('legend', 'etiquette', 'Compter en'),
+    creerPastille('radio', 'unite', 'reps', 'Répétitions', v.unite !== 's'),
+    creerPastille('radio', 'unite', 's', 'Secondes', v.unite === 's'),
+  );
+
+  const enregistrerBouton = creer('button', 'bouton bouton--principal', exercice ? 'Enregistrer' : 'Ajouter l\'exercice');
+  enregistrerBouton.type = 'submit';
+  const actions = creer('div', 'actions');
+  actions.append(enregistrerBouton);
+  if (exercice) {
+    const supprimer = creer('button', 'bouton bouton--secondaire', 'Retirer du programme');
+    supprimer.type = 'button';
+    supprimer.dataset.retirer = exercice.id;
+    actions.append(supprimer);
+  }
+
+  form.append(
+    creer('p', 'texte-secondaire', `Séance ${etat.donnees.programme.indexOf(seance) + 1} · ${seance.nom}`),
+    erreur,
+    creerChampFormulaire('nom', 'Nom', v.nom, { max: 60, indice: 'Ex. : Hip thrust' }),
+    ligneSeries,
+    ligneReps,
+    creer('p', 'exercice__cible', 'Laisse les reps vides pour « max ».'),
+    unite,
+    creerChampFormulaire('poidsDefaut', 'Poids de départ (kg)', formaterNombre(v.poidsDefaut), { clavier: 'decimal', indice: 'Vide = je saisis' }),
+    creerPastille('checkbox', 'poidsDuCorps', 'oui', 'Au poids du corps (le poids saisi = lest)', v.poidsDuCorps === true),
+    creerChampFormulaire('note', 'Note', v.note, { max: 60, indice: 'Ex. : par jambe' }),
+    actions,
+  );
+
+  document.getElementById('ecran-exercice').replaceChildren(form);
+  montrerEcran('exercice', exercice ? exercice.nom : 'Nouvel exercice', 'Retour au programme');
+}
+
+/** Lit et vérifie le formulaire. Renvoie { exercice } ou { erreur, champ }. */
+function lireFormulaire(form) {
+  const valeur = (nom) => form.elements[nom].value.trim();
+  const nom = valeur('nom');
+  if (!nom) return { erreur: 'Donne un nom à l\'exercice.', champ: 'nom' };
+
+  const series = lireReps(valeur('series'));
+  if (!Number.isInteger(series) || series < 1 || series > 10) return { erreur: 'Séries : un nombre entre 1 et 10.', champ: 'series' };
+
+  let repsMin = lireReps(valeur('repsMin'));
+  let repsMax = lireReps(valeur('repsMax'));
+  if (Number.isNaN(repsMin) || repsMin === 0) return { erreur: 'Reps min : un nombre entier (ou vide).', champ: 'repsMin' };
+  if (Number.isNaN(repsMax) || repsMax === 0) return { erreur: 'Reps max : un nombre entier (ou vide).', champ: 'repsMax' };
+  if (repsMin === null) repsMin = repsMax; // une seule valeur = objectif fixe
+  if (repsMax === null) repsMax = repsMin;
+  if (repsMin !== null && repsMin > repsMax) [repsMin, repsMax] = [repsMax, repsMin];
+
+  const poidsDefaut = lirePoids(valeur('poidsDefaut'));
+  if (Number.isNaN(poidsDefaut)) return { erreur: 'Poids de départ : un nombre comme 12,5 (ou vide).', champ: 'poidsDefaut' };
+
+  return {
+    exercice: {
+      nom, series, repsMin, repsMax, poidsDefaut,
+      unite: form.elements.unite.value === 's' ? 's' : 'reps',
+      poidsDuCorps: form.elements.poidsDuCorps.checked,
+      note: valeur('note'),
+    },
+  };
+}
+
+/** Enregistre le formulaire : ajout ou modification. */
+function enregistrerExercice(form) {
+  const lu = lireFormulaire(form);
+  const erreur = document.getElementById('erreur-formulaire');
+  if (lu.erreur) {
+    erreur.textContent = lu.erreur;
+    erreur.hidden = false;
+    form.elements[lu.champ].focus();
+    return;
+  }
+  const { seance: seanceId, exercice: exerciceId } = form.dataset;
+  const nomSeanceCible = nomSeance(seanceId);
+  const ok = modifierDonnees((donnees) => {
+    const seance = donnees.programme.find((s) => s.id === seanceId);
+    const existant = exerciceId && seance.exercices.find((e) => e && e.id === exerciceId);
+    if (existant) Object.assign(existant, lu.exercice);
+    else seance.exercices.push({ id: nouvelIdExercice(lu.exercice.nom), ...lu.exercice });
+  });
+  if (!ok) return;
+  afficherProgramme();
+  afficherMessage(exerciceId ? `« ${lu.exercice.nom} » modifié.` : `« ${lu.exercice.nom} » ajouté à ${nomSeanceCible}.`);
+}
+
+/** Retire un exercice du programme ; ses séances passées restent dans l'historique. */
+function retirerExercice(seanceId, exerciceId) {
+  const seance = trouverSeance(seanceId);
+  const exercice = trouverExercice(seance, exerciceId);
+  if (!exercice) return;
+  if (!confirm(`Retirer « ${exercice.nom} » de ${seance.nom} ? Les séances passées restent dans l'historique.`)) return;
+  if (!modifierDonnees((donnees) => {
+    const cible = donnees.programme.find((s) => s.id === seanceId);
+    cible.exercices = cible.exercices.filter((e) => e && e.id !== exerciceId);
+  })) return;
+  afficherProgramme();
+  afficherMessage(`« ${exercice.nom} » retiré du programme.`);
+}
+
 /* ---------- Service worker ---------- */
 
 const statutHorsLigne = document.getElementById('statut-hors-ligne');
@@ -1035,6 +1286,30 @@ window.addEventListener('resize', () => {
     redessinPrevu = false;
     if (document.getElementById('choix-exercice')) majProgression();
   });
+});
+
+document.getElementById('bouton-programme').addEventListener('click', () => {
+  afficherMessage('');
+  afficherProgramme();
+});
+
+document.getElementById('ecran-programme').addEventListener('click', (evenement) => {
+  const cible = evenement.target.closest('[data-modifier], [data-deplacer], [data-ajouter]');
+  if (!cible) return;
+  afficherMessage('');
+  if (cible.dataset.deplacer) deplacerExercice(cible.dataset.seance, cible.dataset.deplacer, Number(cible.dataset.sens));
+  else if (cible.dataset.ajouter) afficherFormulaireExercice(cible.dataset.ajouter, null);
+  else afficherFormulaireExercice(cible.dataset.seance, cible.dataset.modifier);
+});
+
+const ecranExercice = document.getElementById('ecran-exercice');
+ecranExercice.addEventListener('submit', (evenement) => {
+  evenement.preventDefault();
+  enregistrerExercice(evenement.target);
+});
+ecranExercice.addEventListener('click', (evenement) => {
+  const bouton = evenement.target.closest('[data-retirer]');
+  if (bouton) retirerExercice(bouton.closest('form').dataset.seance, bouton.dataset.retirer);
 });
 
 document.getElementById('ecran-historique').addEventListener('click', (evenement) => {

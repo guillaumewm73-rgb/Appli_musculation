@@ -533,6 +533,119 @@ p {
   white-space: nowrap;
 }
 
+/* ---------- Édition du programme ---------- */
+.programme-liste {
+  list-style: none;
+  margin: var(--esp-12) 0 var(--esp-16);
+  padding: 0;
+}
+
+/* Colonnes : exercice (touchable) · monter · descendre */
+.programme-ligne {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--esp-4);
+  border-top: 1px solid var(--couleur-controle);
+}
+
+.programme-ligne__exercice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: var(--cible-min);
+  padding: var(--esp-12) 0;
+  border: 0;
+  background: none;
+  color: var(--couleur-texte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.programme-ligne__cible {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+.bouton-icone--petit {
+  margin-left: 0;
+}
+
+.bouton-icone:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Formulaire d'exercice */
+.formulaire {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-16);
+}
+
+.formulaire__champ {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-8);
+  min-width: 0;
+}
+
+.formulaire__ligne {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--esp-12);
+}
+
+.champ--formulaire {
+  padding: 0 var(--esp-20);
+  font-size: var(--texte-corps);
+  text-align: left;
+}
+
+.formulaire__choix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-8);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.formulaire__choix legend {
+  width: 100%;
+  margin-bottom: var(--esp-8);
+  padding: 0;
+}
+
+/* Pastille : radio ou case, toute la pilule est cliquable */
+.pastille {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--cible-min);
+  padding: var(--esp-12) var(--esp-20);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-pilule);
+  cursor: pointer;
+}
+
+.pastille input {
+  position: absolute;
+  opacity: 0;
+}
+
+.pastille:has(input:checked) {
+  border-color: var(--couleur-texte);
+  background: var(--couleur-texte);
+  color: var(--couleur-fond);
+}
+
+.pastille:has(input:focus-visible) {
+  outline: 2px solid var(--couleur-texte);
+  outline-offset: 2px;
+}
+
 /* ---------- Boutons (pilule, hauteur tactile) ---------- */
 .bouton {
   display: inline-flex;
