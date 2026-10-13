@@ -82,11 +82,15 @@ Données initiales à charger au premier lancement (mises à jour par Guillaume 
 - Clé API dans `suivi_sam_cle`, discussion dans `suivi_sam_discussion` : hors de `suivi_donnees`, donc jamais exportées.
 - **« Demander à Claude »** (action principale de l'écran Sam, choisie par Guillaume) : copie dans le presse-papiers les consignes de Sam + ses données, puis ouvre claude.ai. Guillaume colle et pose sa question avec son forfait Claude Pro : pas d'API, rien n'est envoyé par l'appli. Si la copie échoue, le texte s'affiche à copier à la main.
 
+## Ajouts après l'analyse des applis concurrentes (13/10/2026)
+- **Minuteur de repos** : démarre quand une série est cochée (durée = repos conseillé par Sam : 2 min 30 polyarticulaire lourd, 1 min 45 autre polyarticulaire, 1 min 15 isolation), ±15 s, « Passer », bips + vibration (Android). L'écran reste allumé pendant une séance (Wake Lock).
+- **Échauffement et disques** dans chaque exercice chargé : séries à 50/70/85 %, disques par côté (barre 20/15/10 kg).
+- **Progression** : choix de la mesure (meilleur poids, 1RM estimé par Epley, volume) + **carte du corps** (séries faites depuis lundi par muscle, une seule teinte en 4 niveaux, liste chiffrée).
+- **Mon corps** : poids de corps (une pesée par jour), courbe, rythme sur 4 semaines et conseil de Sam (repère prise de masse : +0,25 à +0,5 kg/semaine).
+- Décision de données (validée par Guillaume) : `poidsCorps` = liste `{ date: "AAAA-MM-JJ", poids }` dans `suivi_donnees`, incluse dans l'export et vérifiée à l'import.
+
 ## Fonctionnalités — version 2 (plus tard, ne pas faire d'office)
-- Minuteur de repos entre les séries (60-120 s), avec vibration.
-- Suggestion de progression : si toutes les séries atteignent le haut de la fourchette de reps, proposer +2 kg (+1 kg pour les isolations). Simple suggestion, jamais imposée.
 - Notes par séance (fatigue, sommeil, douleurs).
-- Suivi du poids de corps.
 
 ## Modèle de données (proposition)
 ```json

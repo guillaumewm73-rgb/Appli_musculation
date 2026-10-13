@@ -394,7 +394,7 @@ function enregistrer() {
 
 /* ---------- Écrans ---------- */
 
-const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice', 'sauvegarde', 'sam', 'chat'];
+const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice', 'sauvegarde', 'sam', 'chat', 'corps'];
 
 /**
  * Affiche un écran : titre, bouton retour, couleur de fond (séance), animations,
@@ -409,6 +409,7 @@ function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil', classe
   document.body.classList.remove(...TEINTES);
   if (classeTeinte) document.body.classList.add(classeTeinte);
   const enSeance = nom === 'seance';
+  garderEcranAllume(Boolean(etat.donnees.enCours));
   document.getElementById('compteur-seance').hidden = !enSeance;
   document.getElementById('avancement-seance').hidden = !enSeance;
 
@@ -522,6 +523,10 @@ function remplirTuiles() {
   document.getElementById('info-programme').textContent = `${nbExercices} exercices`;
   document.getElementById('info-sauvegarde').textContent = Number.isFinite(derniereSauvegarde)
     ? `Faite ${ilYA(derniereSauvegarde)}` : 'Jamais faite';
+  const pesees = listePoidsCorps();
+  const derniere = pesees[pesees.length - 1];
+  document.getElementById('info-corps').textContent = derniere
+    ? `${formaterNombre(derniere.poids)} kg · ${ilYA(tempsDate(derniere.date))}` : 'Note ton poids';
 }
 
 /** Date de la dernière fois qu'une séance a été faite, ou null. */
@@ -677,6 +682,267 @@ function afficherSeance() {
   majAvancement();
 }
 
+/* ---------- Minuteur de repos et écran allumé ---------- */
+
+const minuteur = { fin: 0, total: 0, nom: '', tic: null };
+let contexteAudio = null;
+let verrouEcran = null;
+
+/** Repos en secondes : milieu de la fourchette conseillée par Sam. */
+function secondesRepos(exercice) {
+  if (!exercice) return 90;
+  if (exercice.unite === 's') return 60;
+  if (LOURDS.has(exercice.id)) return 150;
+  if (estIsolation(exercice)) return 75;
+  return 105;
+}
+
+/** 95 → « 1:35 ». */
+function formaterChrono(secondes) {
+  const s = Math.max(0, Math.ceil(secondes));
+  return `${Math.floor(s / 60)}:${deuxChiffres(s % 60)}`;
+}
+
+/** Le son doit être autorisé pendant un toucher (règle des navigateurs mobiles). */
+function preparerSon() {
+  const Contexte = window.AudioContext || window.webkitAudioContext;
+  if (!Contexte) return;
+  if (!contexteAudio) contexteAudio = new Contexte();
+  if (contexteAudio.state === 'suspended') contexteAudio.resume();
+}
+
+/** Trois bips courts de fin de repos. */
+function biper() {
+  if (!contexteAudio) return;
+  const debut = contexteAudio.currentTime;
+  for (let i = 0; i < 3; i++) {
+    const t = debut + i * 0.25;
+    const oscillateur = contexteAudio.createOscillator();
+    const volume = contexteAudio.createGain();
+    oscillateur.frequency.value = 880;
+    volume.gain.setValueAtTime(0.0001, t);
+    volume.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+    volume.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    oscillateur.connect(volume).connect(contexteAudio.destination);
+    oscillateur.start(t);
+    oscillateur.stop(t + 0.2);
+  }
+}
+
+/** Barre du minuteur, en bas de l'écran (créée une seule fois). */
+function elementMinuteur() {
+  let el = document.getElementById('minuteur');
+  if (el) return el;
+  el = creer('div', 'minuteur');
+  el.id = 'minuteur';
+  el.hidden = true;
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', 'Minuteur de repos');
+
+  const jauge = creer('span', 'minuteur__jauge');
+  jauge.append(document.createElement('span'));
+  const textes = creer('div', 'minuteur__textes');
+  const temps = creer('span', 'minuteur__temps');
+  temps.setAttribute('role', 'timer');
+  textes.append(creer('span', 'minuteur__libelle'), temps);
+  const boutons = creer('div', 'minuteur__boutons');
+  for (const [action, texte, libelle] of [['moins', '−15', 'Retirer 15 secondes'], ['plus', '+15', 'Ajouter 15 secondes'], ['passer', 'Passer', 'Arrêter le repos']]) {
+    const bouton = creer('button', 'minuteur__bouton', texte);
+    bouton.type = 'button';
+    bouton.dataset.minuteur = action;
+    bouton.setAttribute('aria-label', libelle);
+    boutons.append(bouton);
+  }
+  const annonce = creer('span', 'visuellement-cache');
+  annonce.id = 'annonce-minuteur';
+  annonce.setAttribute('role', 'status');
+  el.append(jauge, textes, boutons, annonce);
+
+  el.addEventListener('click', (evenement) => {
+    const bouton = evenement.target.closest('[data-minuteur]');
+    if (!bouton) return;
+    if (bouton.dataset.minuteur === 'passer') arreterMinuteur();
+    else ajusterMinuteur(bouton.dataset.minuteur === 'plus' ? 15 : -15);
+  });
+  document.body.append(el);
+  return el;
+}
+
+/** Démarre le repos (en heures absolues : juste même si l'appli passe en arrière-plan). */
+function lancerMinuteur(secondes, nom) {
+  minuteur.total = secondes;
+  minuteur.fin = Date.now() + secondes * 1000;
+  minuteur.nom = nom;
+  const el = elementMinuteur();
+  el.classList.remove('minuteur--fini');
+  el.hidden = false;
+  document.body.classList.add('avec-minuteur');
+  clearInterval(minuteur.tic);
+  minuteur.tic = setInterval(majMinuteur, 250);
+  majMinuteur();
+}
+
+function ajusterMinuteur(delta) {
+  minuteur.fin = Math.max(Date.now() + 1000, minuteur.fin + delta * 1000);
+  minuteur.total = Math.max(1, minuteur.total + delta);
+  majMinuteur();
+}
+
+function arreterMinuteur() {
+  clearInterval(minuteur.tic);
+  minuteur.tic = null;
+  const el = document.getElementById('minuteur');
+  if (el) el.hidden = true;
+  document.body.classList.remove('avec-minuteur');
+}
+
+function majMinuteur() {
+  const el = elementMinuteur();
+  const reste = (minuteur.fin - Date.now()) / 1000;
+  if (reste <= 0) {
+    finMinuteur();
+    return;
+  }
+  el.querySelector('.minuteur__libelle').textContent = `Repos · ${minuteur.nom}`;
+  el.querySelector('.minuteur__temps').textContent = formaterChrono(reste);
+  el.querySelector('.minuteur__jauge span').style.width = `${Math.min(100, (reste / minuteur.total) * 100)}%`;
+}
+
+/** Fin du repos : bips + vibration (Android), message, puis la barre disparaît. */
+function finMinuteur() {
+  clearInterval(minuteur.tic);
+  minuteur.tic = null;
+  const el = elementMinuteur();
+  el.classList.add('minuteur--fini');
+  el.querySelector('.minuteur__libelle').textContent = 'Repos terminé';
+  el.querySelector('.minuteur__temps').textContent = 'C\'est reparti !';
+  el.querySelector('.minuteur__jauge span').style.width = '0%';
+  document.getElementById('annonce-minuteur').textContent = 'Repos terminé : série suivante.';
+  biper();
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  setTimeout(() => {
+    if (!minuteur.tic) arreterMinuteur();
+  }, 4000);
+}
+
+/** Écran allumé pendant une séance (Wake Lock ; ignoré si le navigateur ne le permet pas). */
+async function garderEcranAllume(actif) {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    if (actif && !verrouEcran && document.visibilityState === 'visible') {
+      verrouEcran = await navigator.wakeLock.request('screen');
+      verrouEcran.addEventListener('release', () => {
+        verrouEcran = null;
+      });
+    } else if (!actif && verrouEcran) {
+      await verrouEcran.release();
+      verrouEcran = null;
+    }
+  } catch {
+    verrouEcran = null;
+  }
+}
+
+/* ---------- Échauffement et disques ---------- */
+
+const DISQUES = [25, 20, 15, 10, 5, 2.5, 1.25];
+const BARRES_EXERCICES = new Set(['dev-couche', 'rdl', 'rowing', 'curl-barre']);
+
+function estBarre(exercice) {
+  return BARRES_EXERCICES.has(exercice.id) || /\bbarre\b/i.test(exercice.nom);
+}
+
+/** L'aide a du sens pour les exercices chargés à la barre ou polyarticulaires. */
+function aideChargeUtile(exercice) {
+  return !exercice.poidsDuCorps && exercice.unite !== 's' && (estBarre(exercice) || !estIsolation(exercice));
+}
+
+/** Disques par côté (du plus lourd au plus léger) ; null si moins lourd que la barre. */
+function disquesParCote(total, barre) {
+  let reste = (total - barre) / 2;
+  if (reste < 0) return null;
+  const disques = [];
+  for (const disque of DISQUES) {
+    while (reste >= disque - 1e-9) {
+      disques.push(disque);
+      reste -= disque;
+    }
+  }
+  return { disques, charge: barre + 2 * disques.reduce((a, b) => a + b, 0) };
+}
+
+/** Séries d'échauffement : 50 % × 8, 70 % × 5, 85 % × 2 (au-delà de 60 kg), arrondies à 2,5 kg. */
+function seriesEchauffement(poids, minimum) {
+  const paliers = poids >= 60 ? [[0.5, 8], [0.7, 5], [0.85, 2]] : [[0.5, 8], [0.75, 4]];
+  const series = paliers.map(([part, reps]) => ({ poids: Math.max(minimum, arrondirCharge(poids * part, 2.5)), reps }));
+  return series.filter((s, i) => s.poids < poids && (i === 0 || s.poids > series[i - 1].poids));
+}
+
+/** Contenu du panneau « Échauffement » d'un exercice, d'après le poids de la prochaine série. */
+function remplirAideCharge(panneau, exercice, i) {
+  const series = etat.donnees.enCours.exercices[i].series;
+  const cible = series.find((s) => !s.fait && typeof s.poids === 'number') || series.find((s) => typeof s.poids === 'number');
+  if (!cible) {
+    panneau.replaceChildren(creer('p', 'aide-charge__texte', 'Saisis un poids pour calculer ton échauffement et tes disques.'));
+    return;
+  }
+  const poids = cible.poids;
+  const barre = etat.barre || 20;
+  const blocs = [];
+
+  if (!estIsolation(exercice)) {
+    const echauffement = poids >= 20 ? seriesEchauffement(poids, estBarre(exercice) ? barre : 0) : [];
+    blocs.push(creer('p', 'aide-charge__texte', echauffement.length
+      ? `Échauffement avant ${formaterNombre(poids)} kg : ${echauffement.map((s) => `${formaterNombre(s.poids)} kg × ${s.reps}`).join(' · ')} (1 min de repos entre).`
+      : 'Charge légère : une série à vide suffit pour t\'échauffer.'));
+  }
+
+  if (estBarre(exercice)) {
+    const choix = creer('fieldset', 'formulaire__choix aide-charge__barre');
+    choix.append(creer('legend', 'etiquette', 'Barre'), ...[20, 15, 10].map((b) => creerPastille('radio', `barre-${i}`, String(b), `${b} kg`, b === barre)));
+    const calcul = disquesParCote(poids, barre);
+    let texte;
+    const visuel = creer('div', 'disques');
+    visuel.setAttribute('aria-hidden', 'true');
+    if (!calcul) {
+      texte = `${formaterNombre(poids)} kg : moins lourd que la barre seule.`;
+    } else if (!calcul.disques.length) {
+      texte = 'Barre seule, sans disque.';
+    } else {
+      texte = `Par côté : ${calcul.disques.map(formaterNombre).join(' + ')} kg`;
+      if (Math.abs(calcul.charge - poids) > 1e-9) texte += ` (le plus proche : ${formaterNombre(calcul.charge)} kg)`;
+      visuel.append(creer('span', 'disques__barre'), ...calcul.disques.map((d) => {
+        const disque = creer('span', 'disque', formaterNombre(d));
+        disque.style.setProperty('--taille', String(Math.round(14 + d * 1.2)));
+        return disque;
+      }));
+    }
+    blocs.push(choix, visuel, creer('p', 'aide-charge__texte', texte));
+  }
+  panneau.replaceChildren(...blocs);
+}
+
+/** Ouvre ou ferme le panneau d'aide d'un exercice. */
+function basculerAideCharge(bouton) {
+  const i = Number(bouton.dataset.aide);
+  const panneau = document.getElementById(`aide-${i}`);
+  const ouvrir = panneau.hidden;
+  if (ouvrir) {
+    const exercice = trouverExerciceDansProgramme(etat.donnees.enCours.exercices[i].exerciceId);
+    if (exercice) remplirAideCharge(panneau, exercice, i);
+  }
+  panneau.hidden = !ouvrir;
+  bouton.setAttribute('aria-expanded', String(ouvrir));
+}
+
+/** Rafraîchit le panneau d'aide s'il est ouvert (poids modifié). */
+function majAideCharge(i) {
+  const panneau = document.getElementById(`aide-${i}`);
+  if (!panneau || panneau.hidden) return;
+  const exercice = trouverExerciceDansProgramme(etat.donnees.enCours.exercices[i].exerciceId);
+  if (exercice) remplirAideCharge(panneau, exercice, i);
+}
+
 /* ---------- Actions ---------- */
 
 /** Ouvre une séance : reprend celle en cours ou en commence une nouvelle. */
@@ -719,7 +985,10 @@ function saisirValeur(input) {
   const ancienne = series[j][champ] ?? null;
   const nouvelle = Number.isNaN(valeur) ? null : valeur;
   series[j][champ] = nouvelle;
-  if (champ === 'poids') propagerPoids(series, i, j, ancienne, nouvelle);
+  if (champ === 'poids') {
+    propagerPoids(series, i, j, ancienne, nouvelle);
+    majAideCharge(i);
+  }
   etat.donnees.enCours.derniereAction = Date.now();
   enregistrer();
 }
@@ -743,6 +1012,14 @@ function cocherSerie(caseFait) {
   }
   majCarteExercice(ligne.closest('.exercice'), exEnCours);
   majAvancement();
+
+  if (serie.fait) {
+    preparerSon();
+    const { faites, total } = compterSeries(etat.donnees.enCours);
+    const exercice = trouverExerciceDansProgramme(exEnCours.exerciceId);
+    if (faites < total) lancerMinuteur(secondesRepos(exercice), exercice ? exercice.nom : 'série suivante');
+    else arreterMinuteur();
+  }
 }
 
 /** Enregistre la séance dans l'historique puis revient à l'accueil. */
@@ -775,6 +1052,7 @@ function terminerSeance() {
     return;
   }
 
+  arreterMinuteur();
   const seance = trouverSeance(entree.seanceId);
   const nom = seance ? seance.nom : 'Séance';
   const classeTeinte = teinte(entree.seanceId);
@@ -787,6 +1065,7 @@ function terminerSeance() {
 
 function abandonnerSeance() {
   if (!confirm('Abandonner cette séance ? Rien ne sera ajouté à l\'historique.')) return;
+  arreterMinuteur();
   delete etat.donnees.enCours;
   enregistrer();
   afficherMessage('');
@@ -946,6 +1225,7 @@ function retour() {
 /* ---------- Progression ---------- */
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+let compteurGraphes = 0;
 
 /** Crée un élément SVG avec ses attributs. */
 function creerSvg(balise, attributs, classe) {
@@ -993,7 +1273,8 @@ function graduations(min, max) {
     max += 2.5;
   }
   // Pas « de salle » : multiples de 2,5 kg dès que possible
-  const pas = [0.5, 1, 2.5, 5, 10, 25, 50, 100].find((p) => Math.ceil(max / p) - Math.floor(min / p) <= 4) ?? 250;
+  const pas = [0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
+    .find((p) => Math.ceil(max / p) - Math.floor(min / p) <= 4) ?? 25000;
   const valeurs = [];
   for (let v = Math.max(0, Math.floor(min / pas) * pas); v <= max + pas - 1e-9; v += pas) {
     valeurs.push(Math.round(v * 100) / 100);
@@ -1003,21 +1284,85 @@ function graduations(min, max) {
 }
 
 /** « +5 kg depuis le 01/09/2026 » entre le premier et le dernier point. */
-function texteEvolution(points) {
-  const ecart = Math.round((points[points.length - 1].poids - points[0].poids) * 100) / 100;
+function texteEvolution(points, unite = 'kg') {
+  const ecart = Math.round((points[points.length - 1].valeur - points[0].valeur) * 100) / 100;
   const signe = ecart > 0 ? '+' : ecart < 0 ? '−' : '±';
-  return `${signe}${formaterNombre(Math.abs(ecart))} kg depuis le ${formaterDate(points[0].id)}`;
+  return `${signe}${formaterNombre(Math.abs(ecart))} ${unite} depuis le ${formaterDate(points[0].id)}`;
+}
+
+/* Mesures de progression : meilleur poids, 1RM estimé (formule d'Epley), volume */
+const MESURES = {
+  poids: { libelle: 'Meilleur poids', nom: 'du meilleur poids' },
+  rm: { libelle: '1RM estimé', nom: 'du 1RM estimé' },
+  volume: { libelle: 'Volume', nom: 'du volume' },
+};
+
+/** 1RM estimé (Epley) : charge × (1 + reps / 30). */
+function unRmEstime(poids, reps) {
+  return reps <= 1 ? poids : poids * (1 + reps / 30);
+}
+
+/** Mesures possibles pour un exercice (pas de 1RM au poids du corps ou au temps). */
+function mesuresPossibles(exercice) {
+  return exercice.poidsDuCorps || exercice.unite === 's' ? ['poids', 'volume'] : ['poids', 'rm', 'volume'];
+}
+
+/** Unité affichée : kg, ou reps / s pour le volume d'un exercice au poids du corps. */
+function uniteMesure(exercice, mesure) {
+  if (mesure !== 'volume' || !(exercice.poidsDuCorps || exercice.unite === 's')) return 'kg';
+  return exercice.unite === 's' ? 's' : 'reps';
+}
+
+/** Un point par séance pour la mesure choisie : { id, temps, valeur, texte }. */
+function pointsMesure(exercice, mesure) {
+  const unite = uniteMesure(exercice, mesure);
+  const points = [];
+  for (const entree of entreesHistorique().reverse()) {
+    const ex = entree.exercices.find((e) => e && e.exerciceId === exercice.id);
+    const temps = tempsDepuisId(entree.id);
+    const faites = ex ? ex.series.filter((s) => s.fait) : [];
+    if (!faites.length || !Number.isFinite(temps)) continue;
+    let valeur = null;
+    let texte = '';
+    if (mesure === 'poids') {
+      const meilleure = meilleureSerie(ex.series);
+      if (meilleure) {
+        valeur = meilleure.poids;
+        texte = texteSerie(exercice, meilleure);
+      }
+    } else if (mesure === 'rm') {
+      let meilleure = null;
+      for (const serie of faites) {
+        if (typeof serie.poids !== 'number' || typeof serie.reps !== 'number' || serie.reps < 1) continue;
+        const rm = unRmEstime(serie.poids, serie.reps);
+        if (!meilleure || rm > meilleure.rm) meilleure = { rm, serie };
+      }
+      if (meilleure) {
+        valeur = Math.round(meilleure.rm * 2) / 2;
+        texte = `${formaterNombre(valeur)} kg · ${texteSerie(exercice, meilleure.serie)}`;
+      }
+    } else if (unite === 'kg') {
+      const total = faites.reduce((somme, s) => somme + (typeof s.poids === 'number' && typeof s.reps === 'number' ? s.poids * s.reps : 0), 0);
+      valeur = Math.round(total);
+      texte = `${formaterNombre(valeur)} kg · ${faites.length} série${faites.length > 1 ? 's' : ''}`;
+    } else {
+      valeur = faites.reduce((somme, s) => somme + (typeof s.reps === 'number' ? s.reps : 0), 0);
+      texte = `${valeur} ${unite} · ${faites.length} série${faites.length > 1 ? 's' : ''}`;
+    }
+    if (valeur !== null && valeur > 0) points.push({ id: entree.id, temps, valeur, texte });
+  }
+  return points;
 }
 
 /**
  * Courbe SVG maison. Toucher ou glisser sur la courbe (ou flèches du clavier)
  * choisit un point ; sa valeur s'affiche dans la zone de lecture.
  */
-function dessinerGraphe(zone, lecture, points, exercice, animer) {
+function dessinerGraphe(zone, lecture, points, options, animer) {
   const largeur = Math.max(240, Math.floor(zone.clientWidth));
   const hauteur = 200;
   const marge = { haut: 12, droite: 12, bas: 28, gauche: 40 };
-  const valeurs = points.map((p) => p.poids);
+  const valeurs = points.map((p) => p.valeur);
   const ticks = graduations(Math.min(...valeurs), Math.max(...valeurs));
   const yMin = ticks[0];
   const yMax = ticks[ticks.length - 1];
@@ -1032,8 +1377,8 @@ function dessinerGraphe(zone, lecture, points, exercice, animer) {
   const dernier = points[points.length - 1];
   const graphe = creerSvg('svg', {
     width: largeur, height: hauteur, viewBox: `0 0 ${largeur} ${hauteur}`, role: 'img', tabindex: '0',
-    'aria-label': `Courbe du meilleur poids : ${points.length} séance${points.length > 1 ? 's' : ''}, `
-      + `de ${formaterNombre(premier.poids)} kg le ${formaterDate(premier.id)} à ${formaterNombre(dernier.poids)} kg le ${formaterDate(dernier.id)}. `
+    'aria-label': `Courbe ${options.nom} : ${points.length} point${points.length > 1 ? 's' : ''}, `
+      + `de ${formaterNombre(premier.valeur)} ${options.unite} le ${formaterDate(premier.id)} à ${formaterNombre(dernier.valeur)} ${options.unite} le ${formaterDate(dernier.id)}. `
       + 'Flèches gauche et droite pour lire chaque point.',
   }, 'graphe');
 
@@ -1056,20 +1401,21 @@ function dessinerGraphe(zone, lecture, points, exercice, animer) {
 
   // Aire en dégradé sous la courbe (lavis léger de la couleur de la séance)
   const defs = creerSvg('defs', {});
-  const degrade = creerSvg('linearGradient', { id: 'degrade-aire', x1: 0, y1: 0, x2: 0, y2: 1 });
+  const idDegrade = `degrade-aire-${++compteurGraphes}`; // unique : plusieurs courbes peuvent coexister dans la page
+  const degrade = creerSvg('linearGradient', { id: idDegrade, x1: 0, y1: 0, x2: 0, y2: 1 });
   degrade.append(
     creerSvg('stop', { offset: 0, 'stop-color': 'currentColor', 'stop-opacity': 0.28 }),
     creerSvg('stop', { offset: 1, 'stop-color': 'currentColor', 'stop-opacity': 0 }),
   );
   defs.append(degrade);
   graphe.prepend(defs);
-  const trace = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.temps).toFixed(1)},${y(p.poids).toFixed(1)}`).join('');
+  const trace = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.temps).toFixed(1)},${y(p.valeur).toFixed(1)}`).join('');
   const bas = hauteur - marge.bas;
-  const aire = creerSvg('path', { d: `${trace}L${x(t1).toFixed(1)},${bas}L${x(t0).toFixed(1)},${bas}Z`, fill: 'url(#degrade-aire)' }, 'graphe__aire');
+  const aire = creerSvg('path', { d: `${trace}L${x(t1).toFixed(1)},${bas}L${x(t0).toFixed(1)},${bas}Z`, fill: `url(#${idDegrade})` }, 'graphe__aire');
   const ligne = creerSvg('path', { d: trace }, 'graphe__ligne');
   graphe.append(aire, ligne);
   // Points (anneau couleur de la carte pour les détacher de la ligne)
-  const ronds = points.map((p) => creerSvg('circle', { cx: x(p.temps), cy: y(p.poids), r: 4 }, 'graphe__point'));
+  const ronds = points.map((p) => creerSvg('circle', { cx: x(p.temps), cy: y(p.valeur), r: 4 }, 'graphe__point'));
   graphe.append(...ronds);
 
   // Curseur : trait vertical + point agrandi sur la séance choisie
@@ -1085,9 +1431,9 @@ function dessinerGraphe(zone, lecture, points, exercice, animer) {
     curseur.setAttribute('x1', xPoint);
     curseur.setAttribute('x2', xPoint);
     choix.setAttribute('cx', xPoint);
-    choix.setAttribute('cy', y(p.poids));
+    choix.setAttribute('cy', y(p.valeur));
     lecture.replaceChildren(
-      creer('span', 'lecture__valeur', texteSerie(exercice, p)),
+      creer('span', 'lecture__valeur', p.texte),
       creer('span', 'lecture__date', formaterDate(p.id)),
     );
   };
@@ -1129,12 +1475,12 @@ function dessinerGraphe(zone, lecture, points, exercice, animer) {
 }
 
 /** Tableau des valeurs (équivalent accessible de la courbe), la plus récente en premier. */
-function creerTableauProgression(points, exercice) {
+function creerTableauProgression(points, titreValeur) {
   const tableau = creer('table', 'tableau');
-  const legende = creer('caption', 'visuellement-cache', 'Meilleure série par séance');
+  const legende = creer('caption', 'visuellement-cache', `${titreValeur} par date`);
   const entete = creer('thead', '');
   const ligneEntete = document.createElement('tr');
-  for (const titre of ['Date', 'Meilleure série']) {
+  for (const titre of ['Date', titreValeur]) {
     const th = creer('th', '', titre);
     th.scope = 'col';
     ligneEntete.append(th);
@@ -1143,11 +1489,137 @@ function creerTableauProgression(points, exercice) {
   const corps = document.createElement('tbody');
   for (const p of [...points].reverse()) {
     const ligne = document.createElement('tr');
-    ligne.append(creer('td', '', formaterDate(p.id)), creer('td', '', texteSerie(exercice, p)));
+    ligne.append(creer('td', '', formaterDate(p.id)), creer('td', '', p.texte));
     corps.append(ligne);
   }
   tableau.append(legende, entete, corps);
   return tableau;
+}
+
+/* ---------- Carte du corps : muscles travaillés cette semaine ---------- */
+
+/** Séries faites depuis lundi par muscle (principal = 1, secondaire = ½), séance en cours comprise. */
+function seriesSemaineParMuscle() {
+  const volume = Object.fromEntries(Object.keys(NOMS_MUSCLES).map((m) => [m, 0]));
+  const debut = debutSemaine();
+  const seances = entreesHistorique().filter((e) => tempsDepuisId(e.id) >= debut);
+  if (etat.donnees.enCours) seances.push(etat.donnees.enCours);
+  for (const seance of seances) {
+    for (const ex of seance.exercices) {
+      const exercice = trouverExerciceDansProgramme(ex.exerciceId);
+      if (!exercice) continue;
+      const faites = ex.series.filter((serie) => serie && serie.fait).length;
+      musclesDe(exercice).forEach((muscle, i) => {
+        volume[muscle] += (i === 0 ? 1 : 0.5) * faites;
+      });
+    }
+  }
+  return volume;
+}
+
+/** Niveau de couleur : 0 série, 1-4, 5-9, 10 et plus (repère hebdomadaire de prise de masse). */
+const niveauMuscle = (series) => (series <= 0 ? 0 : series < 5 ? 1 : series < 10 ? 2 : 3);
+
+// Silhouettes face / dos : [muscle ou null (neutre), forme, attributs]
+const SILHOUETTE_FACE = [
+  [null, 'circle', { cx: 60, cy: 18, r: 12 }],
+  [null, 'rect', { x: 54, y: 29, width: 12, height: 9, rx: 3 }],
+  ['epaules', 'ellipse', { cx: 34, cy: 47, rx: 11, ry: 9 }],
+  ['epaules', 'ellipse', { cx: 86, cy: 47, rx: 11, ry: 9 }],
+  ['pectoraux', 'rect', { x: 40, y: 40, width: 19, height: 21, rx: 7 }],
+  ['pectoraux', 'rect', { x: 61, y: 40, width: 19, height: 21, rx: 7 }],
+  ['biceps', 'ellipse', { cx: 27, cy: 72, rx: 7, ry: 15 }],
+  ['biceps', 'ellipse', { cx: 93, cy: 72, rx: 7, ry: 15 }],
+  [null, 'ellipse', { cx: 23, cy: 104, rx: 6, ry: 14 }],
+  [null, 'ellipse', { cx: 97, cy: 104, rx: 6, ry: 14 }],
+  ['abdos', 'rect', { x: 45, y: 64, width: 30, height: 40, rx: 9 }],
+  [null, 'rect', { x: 44, y: 106, width: 32, height: 15, rx: 6 }],
+  ['quadriceps', 'ellipse', { cx: 50, cy: 152, rx: 10, ry: 30 }],
+  ['quadriceps', 'ellipse', { cx: 70, cy: 152, rx: 10, ry: 30 }],
+  [null, 'ellipse', { cx: 50, cy: 211, rx: 7, ry: 24 }],
+  [null, 'ellipse', { cx: 70, cy: 211, rx: 7, ry: 24 }],
+  [null, 'ellipse', { cx: 50, cy: 241, rx: 8, ry: 4 }],
+  [null, 'ellipse', { cx: 70, cy: 241, rx: 8, ry: 4 }],
+];
+const SILHOUETTE_DOS = [
+  [null, 'circle', { cx: 60, cy: 18, r: 12 }],
+  [null, 'rect', { x: 54, y: 29, width: 12, height: 9, rx: 3 }],
+  ['epaules', 'ellipse', { cx: 34, cy: 47, rx: 11, ry: 9 }],
+  ['epaules', 'ellipse', { cx: 86, cy: 47, rx: 11, ry: 9 }],
+  ['dos', 'rect', { x: 40, y: 40, width: 40, height: 52, rx: 11 }],
+  ['triceps', 'ellipse', { cx: 27, cy: 72, rx: 7, ry: 15 }],
+  ['triceps', 'ellipse', { cx: 93, cy: 72, rx: 7, ry: 15 }],
+  [null, 'ellipse', { cx: 23, cy: 104, rx: 6, ry: 14 }],
+  [null, 'ellipse', { cx: 97, cy: 104, rx: 6, ry: 14 }],
+  [null, 'rect', { x: 46, y: 94, width: 28, height: 11, rx: 5 }],
+  ['fessiers', 'ellipse', { cx: 51, cy: 115, rx: 10, ry: 10 }],
+  ['fessiers', 'ellipse', { cx: 69, cy: 115, rx: 10, ry: 10 }],
+  ['ischios', 'ellipse', { cx: 50, cy: 153, rx: 10, ry: 26 }],
+  ['ischios', 'ellipse', { cx: 70, cy: 153, rx: 10, ry: 26 }],
+  ['mollets', 'ellipse', { cx: 50, cy: 207, rx: 8, ry: 20 }],
+  ['mollets', 'ellipse', { cx: 70, cy: 207, rx: 8, ry: 20 }],
+  [null, 'ellipse', { cx: 50, cy: 241, rx: 8, ry: 4 }],
+  [null, 'ellipse', { cx: 70, cy: 241, rx: 8, ry: 4 }],
+];
+
+/** Une silhouette SVG colorée selon les séries de la semaine. */
+function creerSilhouette(formes, volume, titre) {
+  const svg = creerSvg('svg', { viewBox: '0 0 120 250', class: 'silhouette', 'aria-hidden': 'true' });
+  for (const [muscle, forme, attributs] of formes) {
+    const classe = muscle ? `zone-muscle zone-muscle--n${niveauMuscle(volume[muscle])}` : 'zone-neutre';
+    const el = creerSvg(forme, attributs, classe);
+    if (muscle) {
+      const infobulle = creerSvg('title', {});
+      infobulle.textContent = `${NOMS_MUSCLES[muscle]} : ${formaterNombre(volume[muscle])} séries`;
+      el.append(infobulle);
+    }
+    svg.append(el);
+  }
+  const figure = creer('figure', 'silhouette__figure');
+  figure.append(svg, creer('figcaption', 'silhouette__legende', titre));
+  return figure;
+}
+
+/** Carte « Cette semaine, muscle par muscle » : silhouettes + légende + liste (lisible sans les couleurs). */
+function creerCarteCorps() {
+  const volume = seriesSemaineParMuscle();
+  const total = Object.values(volume).reduce((a, b) => a + b, 0);
+  const figures = creer('div', 'silhouettes');
+  figures.append(creerSilhouette(SILHOUETTE_FACE, volume, 'Face'), creerSilhouette(SILHOUETTE_DOS, volume, 'Dos'));
+
+  const legende = creer('ul', 'legende-muscles');
+  legende.setAttribute('aria-hidden', 'true');
+  ['0', '1-4', '5-9', '10+'].forEach((texte, n) => {
+    const item = creer('li', '');
+    item.append(creer('span', `pastille-niveau zone-muscle--n${n}`), document.createTextNode(texte));
+    legende.append(item);
+  });
+
+  const liste = creer('ul', 'liste-muscles');
+  for (const [muscle, series] of Object.entries(volume).sort((a, b) => b[1] - a[1])) {
+    const item = creer('li', `liste-muscles__item${series >= 10 ? ' liste-muscles__item--ok' : ''}`);
+    item.append(creer('span', '', NOMS_MUSCLES[muscle]), creer('span', 'liste-muscles__valeur', `${formaterNombre(series)} / 10`));
+    liste.append(item);
+  }
+
+  const carte = creer('article', 'carte carte-corps');
+  carte.append(
+    creer('h2', 'exercice__nom', 'Cette semaine, muscle par muscle'),
+    creer('p', 'exercice__cible', total
+      ? 'Séries faites depuis lundi (exercice principal = 1, muscle secondaire = ½). Repère : 10 par muscle.'
+      : 'Pas encore de série cette semaine : la carte se colore au fil de tes séances.'),
+    figures,
+    legende,
+    liste,
+  );
+  return carte;
+}
+
+/** Pastilles « Meilleur poids · 1RM estimé · Volume » selon l'exercice. */
+function remplirChoixMesure(possibles, choisie) {
+  const zone = document.getElementById('choix-mesure');
+  const legende = creer('legend', 'visuellement-cache', 'Mesure affichée');
+  zone.replaceChildren(legende, ...possibles.map((m) => creerPastille('radio', 'mesure', m, MESURES[m].libelle, m === choisie)));
 }
 
 /** Séance du programme qui contient un exercice (pour sa couleur). */
@@ -1160,20 +1632,26 @@ function majProgression(animer = true) {
   const exerciceId = document.getElementById('choix-exercice').value;
   etat.exerciceProgression = exerciceId;
   const exercice = trouverExerciceDansProgramme(exerciceId);
-  const points = pointsProgression(exerciceId);
   const resultats = document.getElementById('resultats-progression');
+  const possibles = mesuresPossibles(exercice);
+  const mesure = possibles.includes(etat.mesureProgression) ? etat.mesureProgression : possibles[1] || possibles[0];
+  remplirChoixMesure(possibles, mesure);
+  const points = pointsMesure(exercice, mesure);
+  const unite = uniteMesure(exercice, mesure);
+  const libelle = mesure === 'poids' && exercice.poidsDuCorps ? 'Meilleur lest' : MESURES[mesure].libelle;
 
   if (!points.length) {
-    const vide = exercice && exercice.poidsDuCorps
+    const vide = exercice.poidsDuCorps && mesure === 'poids'
       ? 'Aucun lest enregistré pour cet exercice au poids du corps.'
-      : 'Pas encore de série cochée avec un poids pour cet exercice.';
+      : 'Pas encore de série cochée avec un poids et des reps pour cet exercice.';
     resultats.replaceChildren(creer('p', 'texte-secondaire', vide));
     return;
   }
 
-  const record = points.reduce((a, b) => (b.poids > a.poids ? b : a));
-  const resume = [`Record : ${formaterNombre(record.poids)} kg le ${formaterDate(record.id)}`];
-  if (points.length > 1) resume.push(texteEvolution(points));
+  const record = points.reduce((a, b) => (b.valeur > a.valeur ? b : a));
+  const resume = [`Record : ${formaterNombre(record.valeur)} ${unite} le ${formaterDate(record.id)}`];
+  if (points.length > 1) resume.push(texteEvolution(points, unite));
+  if (mesure === 'rm') resume.push('1RM = charge que tu soulèverais une fois, estimée d\'après tes séries');
 
   const seance = seanceDeExercice(exerciceId);
   const carteGraphe = creer('article', `carte ${seance ? teinte(seance.id) : 'teinte-1'}`);
@@ -1181,7 +1659,7 @@ function majProgression(animer = true) {
   lecture.setAttribute('aria-live', 'polite');
   const zone = creer('div', 'graphe-zone');
   carteGraphe.append(
-    creer('h2', 'exercice__nom', exercice.poidsDuCorps ? 'Meilleur lest' : 'Meilleur poids'),
+    creer('h2', 'exercice__nom', libelle),
     creer('p', 'exercice__cible', resume.join(' · ')),
     lecture,
     zone,
@@ -1189,10 +1667,10 @@ function majProgression(animer = true) {
   if (points.length === 1) carteGraphe.append(creer('p', 'exercice__cible', 'Une seule séance : la courbe se dessinera à la prochaine.'));
 
   const carteTableau = creer('article', 'carte');
-  carteTableau.append(creer('h2', 'exercice__nom', 'Séances'), creerTableauProgression(points, exercice));
+  carteTableau.append(creer('h2', 'exercice__nom', 'Séances'), creerTableauProgression(points, libelle));
 
   resultats.replaceChildren(carteGraphe, carteTableau);
-  dessinerGraphe(zone, lecture, points, exercice, animer);
+  dessinerGraphe(zone, lecture, points, { nom: MESURES[mesure].nom, unite }, animer);
   if (animer) animerApparitions(resultats);
 }
 
@@ -1225,12 +1703,161 @@ function afficherProgression() {
   }
   const etiquette = creer('label', 'etiquette', 'Exercice');
   etiquette.htmlFor = select.id;
+  const choixMesure = creer('fieldset', 'formulaire__choix');
+  choixMesure.id = 'choix-mesure';
   const resultats = creer('div', 'ecran');
   resultats.id = 'resultats-progression';
 
-  document.getElementById('ecran-progression').replaceChildren(etiquette, select, resultats);
+  document.getElementById('ecran-progression').replaceChildren(creerCarteCorps(), etiquette, select, choixMesure, resultats);
   montrerEcran('progression', 'Progression');
   majProgression(); // après l'affichage : la courbe a besoin de la largeur réelle
+}
+
+/* ---------- Mon corps : poids de corps ---------- */
+
+/** Pesées valides, de la plus ancienne à la plus récente. */
+function listePoidsCorps() {
+  const liste = Array.isArray(etat.donnees.poidsCorps) ? etat.donnees.poidsCorps : [];
+  return liste
+    .filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && typeof e.poids === 'number' && Number.isFinite(e.poids))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+/** « 2026-10-13 » → horodatage local (ms). */
+function tempsDate(date) {
+  const [annee, mois, jour] = date.split('-').map(Number);
+  return new Date(annee, mois - 1, jour).getTime();
+}
+
+function dateDuJour() {
+  return idSeance(Date.now()).slice(0, 10);
+}
+
+/** Rythme en kg par semaine sur les 4 dernières semaines (droite de tendance) ; null si trop peu de pesées. */
+function rythmePoids(liste) {
+  const depuis = Date.now() - 28 * 86400000;
+  const points = liste.filter((e) => tempsDate(e.date) >= depuis).map((e) => [tempsDate(e.date) / 86400000, e.poids]);
+  if (points.length < 2 || points[points.length - 1][0] - points[0][0] < 6) return null;
+  const moyX = points.reduce((s, [x]) => s + x, 0) / points.length;
+  const moyY = points.reduce((s, [, y]) => s + y, 0) / points.length;
+  const haut = points.reduce((s, [x, y]) => s + (x - moyX) * (y - moyY), 0);
+  const bas = points.reduce((s, [x]) => s + (x - moyX) ** 2, 0);
+  return bas ? (haut / bas) * 7 : null;
+}
+
+/** « +0,3 » kg (arrondi au dixième, avec le signe). */
+function formaterEcart(valeur) {
+  const arrondi = Math.round(valeur * 10) / 10;
+  return `${arrondi > 0 ? '+' : arrondi < 0 ? '−' : '±'}${formaterNombre(Math.abs(arrondi))}`;
+}
+
+/** Conseil de Sam sur le rythme de prise de masse (repère : +0,25 à +0,5 kg par semaine). */
+function conseilPoids(rythme) {
+  if (rythme === null) return 'Pèse-toi 1 à 2 fois par semaine, le matin à jeun : je calculerai ton rythme de prise de masse.';
+  const texte = `${formaterEcart(rythme)} kg par semaine`;
+  if (rythme < 0) return `Tu perds du poids (${texte}) : mange davantage, surtout les jours d'entraînement.`;
+  if (rythme < 0.1) return `Ton poids stagne (${texte}) : ajoute environ 200 kcal par jour, par exemple un yaourt avec des flocons d'avoine.`;
+  if (rythme <= 0.6) return `Bon rythme (${texte}) pour une prise de masse propre : continue comme ça.`;
+  return `Ça monte vite (${texte}) : enlève environ 150 kcal par jour pour limiter le gras.`;
+}
+
+/** Écran « Mon corps » : pesée du jour, courbe, rythme, liste des pesées. */
+function afficherCorps() {
+  const liste = listePoidsCorps();
+  const duJour = liste.find((e) => e.date === dateDuJour());
+
+  const form = creer('form', 'formulaire');
+  form.id = 'formulaire-poids';
+  form.noValidate = true;
+  const erreur = creer('p', 'message');
+  erreur.id = 'erreur-poids';
+  erreur.setAttribute('role', 'alert');
+  erreur.hidden = true;
+  const valider = creer('button', 'bouton bouton--principal', duJour ? 'Mettre à jour' : 'Enregistrer');
+  valider.type = 'submit';
+  form.append(
+    erreur,
+    creerChampFormulaire('poids-corps', 'Ton poids aujourd\'hui (kg)', duJour ? formaterNombre(duJour.poids) : '', { clavier: 'decimal', indice: 'Ex. : 72,5' }),
+    valider,
+    creer('p', 'exercice__cible', 'Le matin à jeun, 1 à 2 fois par semaine : c\'est la tendance qui compte.'),
+  );
+  const carteSaisie = creer('article', 'carte');
+  carteSaisie.append(creer('h2', 'exercice__nom', 'Pesée du jour'), form);
+  const blocs = [carteSaisie];
+
+  let dessin = null;
+  if (liste.length) {
+    const points = liste.map((e) => ({ id: e.date, temps: tempsDate(e.date), valeur: e.poids, texte: `${formaterNombre(e.poids)} kg` }));
+    const rythme = rythmePoids(liste);
+    const resume = [`Actuel : ${formaterNombre(points[points.length - 1].valeur)} kg`];
+    if (points.length > 1) resume.push(texteEvolution(points));
+    if (rythme !== null) resume.push(`${formaterEcart(rythme)} kg par semaine (4 dernières semaines)`);
+
+    const lecture = creer('p', 'lecture');
+    lecture.setAttribute('aria-live', 'polite');
+    const zone = creer('div', 'graphe-zone');
+    const conseil = creer('div', 'conseil-seance');
+    const avatar = creer('span', 'avatar-sam avatar-sam--mini', 'S');
+    avatar.setAttribute('aria-hidden', 'true');
+    conseil.append(avatar, creer('span', 'conseil-seance__texte', `Sam : ${conseilPoids(rythme)}`));
+    const carteCourbe = creer('article', 'carte teinte-2');
+    carteCourbe.append(creer('h2', 'exercice__nom', 'Poids de corps'), creer('p', 'exercice__cible', resume.join(' · ')), lecture, zone, conseil);
+    blocs.push(carteCourbe);
+    dessin = () => dessinerGraphe(zone, lecture, points, { nom: 'du poids de corps', unite: 'kg' }, true);
+
+    // Liste des pesées (la plus récente en premier), chacune supprimable
+    const tableau = creer('table', 'tableau');
+    const corps = document.createElement('tbody');
+    for (const e of [...liste].reverse().slice(0, 20)) {
+      const ligne = document.createElement('tr');
+      const supprimer = creer('button', 'bouton-mini', 'Supprimer');
+      supprimer.type = 'button';
+      supprimer.dataset.supprimerPoids = e.date;
+      supprimer.setAttribute('aria-label', `Supprimer la pesée du ${formaterDate(e.date)}`);
+      const cellule = document.createElement('td');
+      cellule.className = 'tableau__action';
+      cellule.append(supprimer);
+      ligne.append(creer('td', '', formaterDate(e.date)), creer('td', '', `${formaterNombre(e.poids)} kg`), cellule);
+      corps.append(ligne);
+    }
+    tableau.append(creer('caption', 'visuellement-cache', 'Pesées, la plus récente en premier'), corps);
+    const carteListe = creer('article', 'carte');
+    carteListe.append(creer('h2', 'exercice__nom', 'Pesées'), tableau);
+    blocs.push(carteListe);
+  }
+
+  document.getElementById('ecran-corps').replaceChildren(...blocs);
+  montrerEcran('corps', 'Mon corps');
+  if (dessin) dessin(); // après l'affichage : la courbe a besoin de la largeur réelle
+}
+
+/** Enregistre la pesée du jour (une par jour : la nouvelle remplace l'ancienne). */
+function enregistrerPoidsCorps(form) {
+  const champ = form.elements['champ-poids-corps'];
+  const poids = lirePoids(champ.value);
+  const erreur = document.getElementById('erreur-poids');
+  if (poids === null || Number.isNaN(poids) || poids < 30 || poids > 250) {
+    erreur.textContent = 'Indique un poids entre 30 et 250 kg, par exemple 72,5.';
+    erreur.hidden = false;
+    champ.focus();
+    return;
+  }
+  const date = dateDuJour();
+  if (!modifierDonnees((donnees) => {
+    const liste = Array.isArray(donnees.poidsCorps) ? donnees.poidsCorps.filter((e) => e && e.date !== date) : [];
+    liste.push({ date, poids });
+    donnees.poidsCorps = liste;
+  })) return;
+  afficherCorps();
+  afficherMessage(`${formaterNombre(poids)} kg enregistré pour le ${formaterDate(date)}.`);
+}
+
+function supprimerPoidsCorps(date) {
+  if (!confirm(`Supprimer la pesée du ${formaterDate(date)} ?`)) return;
+  if (!modifierDonnees((donnees) => {
+    donnees.poidsCorps = (donnees.poidsCorps || []).filter((e) => e && e.date !== date);
+  })) return;
+  afficherCorps();
 }
 
 /* ---------- Édition du programme ---------- */
@@ -1556,10 +2183,13 @@ function validerImport(brut) {
     programme.push({ id: seance.id, nom: seance.nom, exercices });
   }
   if (!brut.historique.every(entreeImportValide)) return { erreur: abime };
+  if (brut.poidsCorps !== undefined && !(Array.isArray(brut.poidsCorps) && brut.poidsCorps.every((e) => e
+    && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && typeof e.poids === 'number' && Number.isFinite(e.poids)))) return { erreur: abime };
 
   const donnees = migrer({ version: brut.version, programme, historique: brut.historique });
   if (brut.enCours && seanceEnCoursValide(brut.enCours)) donnees.enCours = brut.enCours;
   if (Number.isFinite(brut.derniereSauvegarde)) donnees.derniereSauvegarde = brut.derniereSauvegarde;
+  if (Array.isArray(brut.poidsCorps)) donnees.poidsCorps = brut.poidsCorps.map((e) => ({ date: e.date, poids: e.poids }));
   return { donnees };
 }
 
@@ -2033,7 +2663,10 @@ function analyserAvecSam() {
   const volume = volumeParMuscle();
   const manques = Object.entries(volume).filter(([, v]) => v < 10).sort((a, b) => a[1] - b[1]);
   const jourDeLAnnee = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  const pesees = listePoidsCorps();
   return {
+    pesees,
+    rythmePoids: rythmePoids(pesees),
     aDesSeances: entreesHistorique().length > 0,
     charges,
     records: recordsRecents(),
@@ -2166,6 +2799,10 @@ function afficherSam() {
   if (jours !== null && jours >= 4) phrases.push(`Ta dernière séance date de ${jours} jours : on y retourne ?`);
   if (serie >= 2) phrases.push(`${serie} semaines d'affilée à 3 séances ou plus. Belle régularité !`);
   blocs.push(carteSam('Régularité', creer('p', 'carte__texte', phrases.join(' '))));
+  const dernierePesee = analyse.pesees[analyse.pesees.length - 1];
+  blocs.push(carteSam('Poids de corps', creer('p', 'carte__texte', dernierePesee
+    ? `${formaterNombre(dernierePesee.poids)} kg le ${formaterDate(dernierePesee.date)}. ${conseilPoids(analyse.rythmePoids)}`
+    : 'Note ton poids dans « Mon corps » : je te dirai si ta prise de masse va au bon rythme.')));
   blocs.push(carteSam('Astuce du jour', creer('p', 'carte__texte', analyse.astuce)));
 
   const demander = creer('button', 'bouton bouton--principal', 'Demander à Claude');
@@ -2192,7 +2829,23 @@ function afficherSam() {
 /** Ligne « Repos » et conseil de Sam dans une carte d'exercice de la séance. */
 function creerConseilSeance(exercice, i) {
   const bloc = creer('div', 'exercice__sam');
-  bloc.append(creer('p', 'exercice__repos', `Repos : ${reposConseille(exercice)}`));
+  const ligneRepos = creer('div', 'exercice__repos-ligne');
+  ligneRepos.append(creer('p', 'exercice__repos', `Repos : ${reposConseille(exercice)}`));
+  if (aideChargeUtile(exercice)) {
+    const bouton = creer('button', 'bouton-mini', 'Échauffement');
+    bouton.type = 'button';
+    bouton.dataset.aide = String(i);
+    bouton.setAttribute('aria-expanded', 'false');
+    bouton.setAttribute('aria-controls', `aide-${i}`);
+    ligneRepos.append(bouton);
+  }
+  bloc.append(ligneRepos);
+  if (aideChargeUtile(exercice)) {
+    const panneau = creer('div', 'aide-charge');
+    panneau.id = `aide-${i}`;
+    panneau.hidden = true;
+    bloc.append(panneau);
+  }
   const conseil = conseilCharge(exercice);
   if (['monter', 'baisser', 'stagne'].includes(conseil.type)) {
     const ligne = creer('div', 'conseil-seance');
@@ -2231,6 +2884,7 @@ function appliquerConseil(bouton) {
   bouton.textContent = 'Appliqué';
   bouton.disabled = true;
   vibrer();
+  majAideCharge(i);
 }
 
 /* ---------- Sam : discussion avec l'IA (Claude, en ligne, sur demande) ---------- */
@@ -2308,7 +2962,10 @@ function donneesPourSam() {
     ...analyse.manques.map(([m, v]) => `- ${NOMS_MUSCLES[m]} : ${formaterNombre(v)} séries par semaine (faible)`),
     ...analyse.sautes.map(({ exercice, fois, sur }) => `- ${exercice.nom} sauté ${fois} fois sur ${sur}`),
     `- Cette semaine : ${analyse.regularite.semaine}/${analyse.regularite.objectif} séances`,
-  ].join('\n');
+    analyse.rythmePoids !== null ? `- Poids de corps : ${formaterEcart(analyse.rythmePoids)} kg par semaine sur 4 semaines` : '',
+  ].filter(Boolean).join('\n');
+  const pesees = analyse.pesees.slice(-12).map((e) => `- ${formaterDate(e.date)} : ${formaterNombre(e.poids)} kg`).join('\n')
+    || 'Aucune pesée enregistrée.';
 
   return `<donnees date="${jour} ${formaterDate(idSeance(Date.now()))}">
 <programme>
@@ -2317,6 +2974,9 @@ ${programme}
 <seances_recentes>
 ${historique}
 </seances_recentes>
+<poids_de_corps>
+${pesees}
+</poids_de_corps>
 <analyses_automatiques>
 ${conseils}
 </analyses_automatiques>
@@ -2718,7 +3378,8 @@ document.getElementById('bouton-progression').addEventListener('click', () => {
 });
 
 document.getElementById('ecran-progression').addEventListener('change', (evenement) => {
-  if (evenement.target.id === 'choix-exercice') majProgression();
+  if (evenement.target.name === 'mesure') etat.mesureProgression = evenement.target.value;
+  if (evenement.target.id === 'choix-exercice' || evenement.target.name === 'mesure') majProgression();
 });
 
 // Rotation ou redimensionnement : la courbe est redessinée à la bonne largeur
@@ -2777,6 +3438,21 @@ ecranSauvegarde.addEventListener('change', (evenement) => {
   if (evenement.target.id !== 'fichier-import') return;
   importerFichier(evenement.target.files[0]);
   evenement.target.value = ''; // permet de rechoisir le même fichier
+});
+
+document.getElementById('bouton-corps').addEventListener('click', () => {
+  afficherMessage('');
+  afficherCorps();
+});
+
+const ecranCorps = document.getElementById('ecran-corps');
+ecranCorps.addEventListener('submit', (evenement) => {
+  evenement.preventDefault();
+  enregistrerPoidsCorps(evenement.target);
+});
+ecranCorps.addEventListener('click', (evenement) => {
+  const bouton = evenement.target.closest('[data-supprimer-poids]');
+  if (bouton) supprimerPoidsCorps(bouton.dataset.supprimerPoids);
 });
 
 document.getElementById('bouton-sam').addEventListener('click', () => {
@@ -2854,11 +3530,27 @@ ecranSeance.addEventListener('input', (evenement) => {
 });
 ecranSeance.addEventListener('change', (evenement) => {
   if (evenement.target.matches('[data-champ="fait"]')) cocherSerie(evenement.target);
+  else if (evenement.target.name && evenement.target.name.startsWith('barre-')) {
+    etat.barre = Number(evenement.target.value);
+    majAideCharge(Number(evenement.target.name.slice(6)));
+  }
+});
+
+// Retour dans l'appli : l'écran reste allumé si une séance est en cours, le minuteur se remet à l'heure
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (etat.donnees.enCours) garderEcranAllume(true);
+  if (minuteur.tic) majMinuteur();
 });
 ecranSeance.addEventListener('click', (evenement) => {
   const appliquer = evenement.target.closest('[data-appliquer]');
   if (appliquer) {
     appliquerConseil(appliquer);
+    return;
+  }
+  const aide = evenement.target.closest('[data-aide]');
+  if (aide) {
+    basculerAideCharge(aide);
     return;
   }
   const action = evenement.target.closest('[data-action]');

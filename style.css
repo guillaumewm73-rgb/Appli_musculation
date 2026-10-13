@@ -1589,6 +1589,281 @@ body.defile .barre__titre {
   transform: scale(0.92);
 }
 
+/* =========================================================
+   Minuteur de repos, échauffement, carte du corps, mon corps
+   ========================================================= */
+
+/* Minuteur : barre fixe en bas, au-dessus du contenu */
+.minuteur {
+  position: fixed;
+  left: max(var(--esp-12), env(safe-area-inset-left));
+  right: max(var(--esp-12), env(safe-area-inset-right));
+  bottom: calc(var(--esp-12) + env(safe-area-inset-bottom));
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-12);
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--esp-12) var(--esp-12) var(--esp-12) var(--esp-20);
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 24px;
+  background: rgb(30 30 42 / 0.94);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.8);
+  animation: message-entree 0.4s var(--courbe-rebond);
+}
+
+/* Jauge du temps restant, le long du bord haut */
+.minuteur__jauge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.minuteur__jauge span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-fort), var(--accent-clair));
+  transition: width 0.25s linear;
+}
+
+.minuteur__textes {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.minuteur__libelle {
+  overflow: hidden;
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.minuteur__temps {
+  font-size: var(--texte-titre);
+  font-weight: var(--graisse-accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.minuteur--fini .minuteur__temps {
+  font-size: var(--texte-sous-titre);
+  animation: pop 0.45s var(--courbe-rebond);
+}
+
+.minuteur__boutons {
+  display: flex;
+  gap: var(--esp-4);
+}
+
+.minuteur__bouton {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 var(--esp-12);
+  border: 0;
+  border-radius: var(--rayon-pilule);
+  background: var(--couleur-controle);
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: var(--texte-petit);
+  cursor: pointer;
+}
+
+.minuteur__bouton:active {
+  transform: scale(0.94);
+}
+
+/* Place pour le minuteur sous le dernier bouton de la page */
+body.avec-minuteur .page {
+  padding-bottom: 140px;
+}
+
+/* Séance : repos + bouton Échauffement sur une ligne */
+.exercice__repos-ligne {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-8);
+}
+
+.aide-charge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-12);
+  margin-top: var(--esp-12);
+  padding: var(--esp-16);
+  border-radius: var(--rayon-carte);
+  background: rgb(255 255 255 / 0.04);
+  animation: message-entree 0.3s var(--courbe);
+}
+
+.aide-charge__texte {
+  font-size: var(--texte-petit);
+}
+
+/* Disques par côté : barre + disques dont la hauteur suit le poids */
+.disques {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 48px;
+}
+
+.disques:empty {
+  display: none;
+}
+
+.disques__barre {
+  width: 36px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--couleur-bordure);
+}
+
+.disque {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: calc(var(--taille) * 1px);
+  border-radius: 4px;
+  background: var(--accent-degrade);
+  color: var(--couleur-sur-action);
+  font-size: 9px;
+  writing-mode: vertical-rl;
+}
+
+/* Choix de la mesure (Progression) */
+#choix-mesure {
+  margin-top: var(--esp-4);
+}
+
+/* Carte du corps */
+.silhouettes {
+  display: flex;
+  justify-content: center;
+  gap: var(--esp-24);
+  margin-top: var(--esp-16);
+}
+
+.silhouette__figure {
+  margin: 0;
+  text-align: center;
+}
+
+.silhouette {
+  display: block;
+  width: 120px;
+  height: 250px;
+}
+
+.silhouette__legende {
+  margin-top: var(--esp-4);
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+}
+
+.zone-neutre {
+  fill: rgb(255 255 255 / 0.05);
+}
+
+/* Une seule teinte, de plus en plus soutenue (0 · 1-4 · 5-9 · 10+ séries) */
+.zone-muscle--n0 {
+  fill: rgb(255 255 255 / 0.1);
+}
+
+.zone-muscle--n1 {
+  fill: rgb(107 124 255 / 0.35);
+}
+
+.zone-muscle--n2 {
+  fill: rgb(107 124 255 / 0.65);
+}
+
+.zone-muscle--n3 {
+  fill: #6b7cff;
+}
+
+.zone-muscle {
+  stroke: var(--couleur-carte);
+  stroke-width: 1.5;
+  transition: fill 0.4s;
+}
+
+.legende-muscles {
+  display: flex;
+  justify-content: center;
+  gap: var(--esp-16);
+  margin: var(--esp-12) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+}
+
+.legende-muscles li {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-4);
+}
+
+.pastille-niveau {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.pastille-niveau.zone-muscle--n0 { background: rgb(255 255 255 / 0.1); }
+.pastille-niveau.zone-muscle--n1 { background: rgb(107 124 255 / 0.35); }
+.pastille-niveau.zone-muscle--n2 { background: rgb(107 124 255 / 0.65); }
+.pastille-niveau.zone-muscle--n3 { background: #6b7cff; }
+
+.liste-muscles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--esp-4) var(--esp-16);
+  margin: var(--esp-16) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--texte-petit);
+}
+
+.liste-muscles__item {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--esp-4) 0;
+  border-bottom: 1px solid var(--couleur-controle);
+}
+
+.liste-muscles__valeur {
+  color: var(--couleur-texte-secondaire);
+  font-variant-numeric: tabular-nums;
+}
+
+.liste-muscles__item--ok .liste-muscles__valeur {
+  color: var(--couleur-texte);
+}
+
+/* Tableau avec bouton en fin de ligne */
+.tableau td.tableau__action {
+  width: 1%;
+  text-align: right;
+}
+
+/* 5 tuiles : la dernière prend toute la largeur */
+.tuile:last-child:nth-child(odd) {
+  grid-column: span 2;
+  min-height: 0;
+}
+
 /* Réglage « Réduire les animations » du téléphone : tout devient immédiat */
 @media (prefers-reduced-motion: reduce) {
   *,
