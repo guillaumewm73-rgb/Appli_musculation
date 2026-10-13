@@ -646,6 +646,11 @@ p {
   outline-offset: 2px;
 }
 
+/* Texte courant dans une carte, avant un bouton */
+.carte__texte {
+  margin: var(--esp-12) 0 var(--esp-20);
+}
+
 /* ---------- Boutons (pilule, hauteur tactile) ---------- */
 .bouton {
   display: inline-flex;

@@ -118,6 +118,10 @@ Décisions validées (étape 3) :
 - Exercice jamais fait : poids de départ pré-rempli, reps vides (objectif affiché en gris).
 - Séance en cours : champ optionnel `enCours` dans `suivi_donnees` (même format qu'une entrée d'historique, plus `debut` et `derniereAction` en ms). Enregistrée à chaque saisie, reprise automatiquement à l'ouverture. Durée = du début à la dernière saisie.
 
+Décisions (étapes 6-7) :
+- `derniereSauvegarde` (ms, optionnel) dans `suivi_donnees` : date du dernier export.
+- Import = remplacement complet, après vérification de tout le fichier et confirmation. Copie de secours des données remplacées dans `suivi_avant_import`, restaurable depuis l'écran Sauvegarde.
+
 ## Étapes de développement
 1. Structure du projet + manifest + service worker + page d'accueil vide qui s'installe.
 2. Chargement du programme de départ + écran d'accueil.

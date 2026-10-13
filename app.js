@@ -4,12 +4,14 @@
    Étape 3 : écran de séance (saisie, cases à cocher, enregistrement).
    Étape 4 : historique (liste, détail, suppression).
    Étape 5 : progression (courbe SVG du meilleur poids).
-   Étape 6 : édition du programme. */
+   Étape 6 : édition du programme.
+   Étape 7 : export / import JSON. */
 'use strict';
 
 /* ---------- Programme de départ ---------- */
 
 const CLE_DONNEES = 'suivi_donnees';
+const CLE_AVANT_IMPORT = 'suivi_avant_import'; // copie de secours faite juste avant un import
 const VERSION_DONNEES = 1;
 
 /**
@@ -314,7 +316,7 @@ function enregistrer() {
 
 /* ---------- Écrans ---------- */
 
-const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice'];
+const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice', 'sauvegarde'];
 
 /** Affiche un écran : titre, bouton retour, focus pour les lecteurs d'écran. */
 function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil') {
@@ -1226,6 +1228,250 @@ function retirerExercice(seanceId, exerciceId) {
   afficherMessage(`« ${exercice.nom} » retiré du programme.`);
 }
 
+/* ---------- Sauvegarde : export / import ---------- */
+
+const estTexte = (v) => typeof v === 'string' && v.length > 0 && v.length <= 200;
+const estNombreOuNull = (v) => v === null || (typeof v === 'number' && Number.isFinite(v));
+const estEntierOuNull = (v) => v === null || (Number.isInteger(v) && v >= 0);
+
+/** Exercice du programme importé, nettoyé ; null s'il est invalide. */
+function nettoyerExercice(e) {
+  if (!e || !estTexte(e.id) || !estTexte(e.nom) || !Number.isInteger(e.series) || e.series < 1 || e.series > 20) return null;
+  const repsMin = e.repsMin ?? null;
+  const repsMax = e.repsMax ?? null;
+  const poidsDefaut = e.poidsDefaut ?? null;
+  if (!estEntierOuNull(repsMin) || !estEntierOuNull(repsMax) || !estNombreOuNull(poidsDefaut)) return null;
+  return {
+    id: e.id, nom: e.nom, series: e.series, repsMin, repsMax, poidsDefaut,
+    unite: e.unite === 's' ? 's' : 'reps',
+    poidsDuCorps: e.poidsDuCorps === true,
+    note: typeof e.note === 'string' ? e.note : '',
+  };
+}
+
+/** Séance de l'historique importée : forme complète attendue. */
+function entreeImportValide(e) {
+  return e && estTexte(e.id) && estTexte(e.seanceId)
+    && (e.dureeMin === undefined || estNombreOuNull(e.dureeMin))
+    && Array.isArray(e.exercices)
+    && e.exercices.every((x) => x && estTexte(x.exerciceId) && Array.isArray(x.series)
+      && x.series.every((serie) => serie && estNombreOuNull(serie.poids ?? null)
+        && estNombreOuNull(serie.reps ?? null) && typeof (serie.fait ?? false) === 'boolean'));
+}
+
+/**
+ * Vérifie un fichier importé. Tout doit être valide, sinon rien n'est importé
+ * (un import partiel ferait perdre des données sans prévenir).
+ */
+function validerImport(brut) {
+  const abime = 'Fichier abîmé : import annulé, rien n\'a changé.';
+  if (!brut || typeof brut !== 'object' || !Number.isInteger(brut.version)
+    || !Array.isArray(brut.programme) || !Array.isArray(brut.historique)) {
+    return { erreur: 'Ce fichier n\'est pas une sauvegarde de l\'appli.' };
+  }
+  if (brut.version > VERSION_DONNEES) {
+    return { erreur: 'Sauvegarde faite avec une version plus récente de l\'appli : ouvre l\'appli avec du réseau pour la mettre à jour, puis réessaie.' };
+  }
+  const programme = [];
+  for (const seance of brut.programme) {
+    if (!seance || !estTexte(seance.id) || !estTexte(seance.nom) || !Array.isArray(seance.exercices)) return { erreur: abime };
+    const exercices = seance.exercices.map(nettoyerExercice);
+    if (exercices.includes(null)) return { erreur: abime };
+    programme.push({ id: seance.id, nom: seance.nom, exercices });
+  }
+  if (!brut.historique.every(entreeImportValide)) return { erreur: abime };
+
+  const donnees = migrer({ version: brut.version, programme, historique: brut.historique });
+  if (brut.enCours && seanceEnCoursValide(brut.enCours)) donnees.enCours = brut.enCours;
+  if (Number.isFinite(brut.derniereSauvegarde)) donnees.derniereSauvegarde = brut.derniereSauvegarde;
+  return { donnees };
+}
+
+/** « aujourd'hui », « hier », « il y a 5 jours ». */
+function ilYA(ms) {
+  const jour = (t) => {
+    const d = new Date(t);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const jours = Math.round((jour(Date.now()) - jour(ms)) / 86400000);
+  if (jours <= 0) return 'aujourd\'hui';
+  if (jours === 1) return 'hier';
+  return `il y a ${jours} jours`;
+}
+
+/** Copie de secours d'avant le dernier import, ou null. */
+function lireCopieAvantImport() {
+  try {
+    const copie = JSON.parse(localStorage.getItem(CLE_AVANT_IMPORT));
+    return copie && Number.isFinite(copie.date) && copie.donnees ? copie : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Ouvre la feuille de partage (iPhone, Android) ou télécharge le fichier. */
+async function exporterDonnees() {
+  const fichier = new File(
+    [JSON.stringify(etat.donnees, null, 2)],
+    `suivi-seances-${idSeance(Date.now()).slice(0, 10)}.json`,
+    { type: 'application/json' },
+  );
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+      await navigator.share({ files: [fichier], title: 'Sauvegarde Suivi de séances' });
+    } else {
+      telechargerFichier(fichier);
+    }
+  } catch (erreur) {
+    if (erreur.name === 'AbortError') return; // partage annulé : rien n'est exporté
+    telechargerFichier(fichier);
+  }
+  etat.donnees.derniereSauvegarde = Date.now();
+  enregistrer();
+  remplirSauvegarde();
+  afficherMessage('Sauvegarde exportée. Garde le fichier en lieu sûr (Fichiers, iCloud, mail…).');
+}
+
+function telechargerFichier(fichier) {
+  const url = URL.createObjectURL(fichier);
+  const lien = document.createElement('a');
+  lien.href = url;
+  lien.download = fichier.name;
+  document.body.append(lien);
+  lien.click();
+  lien.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/** Remplace toutes les données par un fichier exporté, après vérification et confirmation. */
+async function importerFichier(fichier) {
+  if (!fichier) return;
+  if (!etat.enregistrable) {
+    alert('Stockage indisponible : import impossible.');
+    return;
+  }
+  if (fichier.size > 5 * 1024 * 1024) {
+    alert('Fichier trop gros pour être une sauvegarde de l\'appli.');
+    return;
+  }
+  let brut;
+  try {
+    brut = JSON.parse(await fichier.text());
+  } catch {
+    alert('Fichier illisible : choisis un fichier .json exporté par l\'appli.');
+    return;
+  }
+  const { donnees, erreur } = validerImport(brut);
+  if (erreur) {
+    alert(erreur);
+    return;
+  }
+  const nbFichier = donnees.historique.length;
+  const nbActuel = etat.donnees.historique.length;
+  if (!confirm(`Remplacer toutes les données de l'appli par ce fichier ?\n\n`
+    + `Fichier : ${nbFichier} séance${nbFichier > 1 ? 's' : ''} dans l'historique.\n`
+    + `Actuellement : ${nbActuel} séance${nbActuel > 1 ? 's' : ''}.\n\n`
+    + 'Tes données actuelles sont gardées en copie de secours.')) return;
+
+  // Jamais de remplacement sans copie de secours
+  try {
+    localStorage.setItem(CLE_AVANT_IMPORT, JSON.stringify({ date: Date.now(), donnees: etat.donnees }));
+  } catch {
+    alert('Stockage plein : impossible de garder une copie de secours. Import annulé, rien n\'a changé.');
+    return;
+  }
+  const avant = etat.donnees;
+  etat.donnees = donnees;
+  if (!ecrireDonnees(donnees)) {
+    etat.donnees = avant;
+    alert('Stockage de l\'appli plein : import annulé, rien n\'a changé.');
+    return;
+  }
+  afficherAccueil();
+  afficherMessage(`Import réussi : ${nbFichier} séance${nbFichier > 1 ? 's' : ''} dans l'historique.`);
+}
+
+/** Revient aux données d'avant le dernier import. */
+function restaurerCopieAvantImport() {
+  const copie = lireCopieAvantImport();
+  const { donnees, erreur } = copie ? validerImport(copie.donnees) : { erreur: 'Aucune copie de secours.' };
+  if (erreur) {
+    alert(erreur);
+    return;
+  }
+  if (!confirm(`Revenir aux données du ${formaterDate(idSeance(copie.date))} (avant l'import) ? Les données actuelles seront remplacées.`)) return;
+  const avant = etat.donnees;
+  etat.donnees = donnees;
+  if (!ecrireDonnees(donnees)) {
+    etat.donnees = avant;
+    alert('Stockage de l\'appli plein : rien n\'a changé.');
+    return;
+  }
+  localStorage.removeItem(CLE_AVANT_IMPORT);
+  afficherAccueil();
+  afficherMessage('Données d\'avant l\'import restaurées.');
+}
+
+/** Contenu de l'écran Sauvegarde. */
+function remplirSauvegarde() {
+  const { historique, derniereSauvegarde } = etat.donnees;
+  const nb = historique.length;
+
+  const exporter = creer('button', 'bouton bouton--principal', 'Exporter mes données');
+  exporter.type = 'button';
+  exporter.dataset.action = 'exporter';
+  const carteExport = creer('article', 'carte');
+  carteExport.append(
+    creer('h2', 'exercice__nom', 'Exporter'),
+    creer('p', 'exercice__cible', Number.isFinite(derniereSauvegarde)
+      ? `Dernière sauvegarde : ${formaterDate(idSeance(derniereSauvegarde))} (${ilYA(derniereSauvegarde)})`
+      : 'Jamais sauvegardé.'),
+    creer('p', 'carte__texte', `Un fichier avec ton programme et ${nb} séance${nb > 1 ? 's' : ''} d'historique. `
+      + 'Sur iPhone : « Enregistrer dans Fichiers » ou envoie-le-toi par mail.'),
+    exporter,
+  );
+
+  const choisir = creer('button', 'bouton bouton--secondaire', 'Choisir un fichier');
+  choisir.type = 'button';
+  choisir.dataset.action = 'choisir';
+  const entree = creer('input', 'visuellement-cache');
+  entree.type = 'file';
+  entree.accept = '.json,application/json';
+  entree.id = 'fichier-import';
+  entree.tabIndex = -1;
+  entree.setAttribute('aria-hidden', 'true');
+  const carteImport = creer('article', 'carte');
+  carteImport.append(
+    creer('h2', 'exercice__nom', 'Restaurer'),
+    creer('p', 'carte__texte', 'Remplace toutes les données de l\'appli par celles d\'un fichier exporté. Le fichier est vérifié avant.'),
+    choisir,
+    entree,
+  );
+
+  const cartes = [carteExport, carteImport];
+  const copie = lireCopieAvantImport();
+  if (copie) {
+    const restaurer = creer('button', 'bouton bouton--secondaire', 'Revenir à cette copie');
+    restaurer.type = 'button';
+    restaurer.dataset.action = 'restaurer';
+    const carteCopie = creer('article', 'carte');
+    carteCopie.append(
+      creer('h2', 'exercice__nom', 'Copie de secours'),
+      creer('p', 'carte__texte', `Tes données d'avant le dernier import (${formaterDate(idSeance(copie.date))}).`),
+      restaurer,
+    );
+    cartes.push(carteCopie);
+  }
+
+  const intro = creer('p', 'texte-secondaire', 'Tes données sont seulement sur ce téléphone. Exporte-les régulièrement pour ne rien perdre.');
+  document.getElementById('ecran-sauvegarde').replaceChildren(intro, ...cartes);
+}
+
+function afficherSauvegarde() {
+  remplirSauvegarde();
+  montrerEcran('sauvegarde', 'Sauvegarde');
+}
+
 /* ---------- Service worker ---------- */
 
 const statutHorsLigne = document.getElementById('statut-hors-ligne');
@@ -1310,6 +1556,25 @@ ecranExercice.addEventListener('submit', (evenement) => {
 ecranExercice.addEventListener('click', (evenement) => {
   const bouton = evenement.target.closest('[data-retirer]');
   if (bouton) retirerExercice(bouton.closest('form').dataset.seance, bouton.dataset.retirer);
+});
+
+document.getElementById('bouton-sauvegarde').addEventListener('click', () => {
+  afficherMessage('');
+  afficherSauvegarde();
+});
+
+const ecranSauvegarde = document.getElementById('ecran-sauvegarde');
+ecranSauvegarde.addEventListener('click', (evenement) => {
+  const bouton = evenement.target.closest('[data-action]');
+  if (!bouton) return;
+  if (bouton.dataset.action === 'exporter') exporterDonnees();
+  else if (bouton.dataset.action === 'choisir') document.getElementById('fichier-import').click();
+  else if (bouton.dataset.action === 'restaurer') restaurerCopieAvantImport();
+});
+ecranSauvegarde.addEventListener('change', (evenement) => {
+  if (evenement.target.id !== 'fichier-import') return;
+  importerFichier(evenement.target.files[0]);
+  evenement.target.value = ''; // permet de rechoisir le même fichier
 });
 
 document.getElementById('ecran-historique').addEventListener('click', (evenement) => {
