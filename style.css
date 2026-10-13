@@ -2556,6 +2556,270 @@ body.avec-minuteur .page {
   line-height: 1.4;
 }
 
+/* ---------- Rappel de sauvegarde (accueil) ---------- */
+.rappel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-8);
+  border: 1px solid rgb(154 166 255 / 0.35);
+  background: linear-gradient(160deg, #23234a 0%, var(--couleur-carte) 70%);
+}
+
+.rappel__haut {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-12);
+}
+
+.rappel__icone {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f63e8, #6a4fdc);
+  color: var(--couleur-sur-action);
+  animation: halo-sam 2.6s ease-in-out infinite;
+}
+
+.rappel__titre {
+  font-size: var(--texte-grand);
+}
+
+.rappel .carte__texte {
+  margin: 0 0 var(--esp-8);
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+/* ---------- Remplacer un exercice ---------- */
+.exercice__remplace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-8);
+  margin-top: var(--esp-8);
+  padding: 0 0 0 var(--esp-12);
+  border-left: 2px solid var(--accent);
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+.exercice__remplacer {
+  display: block;
+  margin: var(--esp-12) auto 0;
+}
+
+.remplacement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-8);
+  margin-top: var(--esp-8);
+  padding: var(--esp-12);
+  border-radius: var(--rayon-carte);
+  background: rgb(255 255 255 / 0.04);
+  animation: message-entree 0.3s var(--courbe);
+}
+
+.remplacement__texte {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+.remplacement__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.remplacement__choix {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: var(--cible-min);
+  padding: var(--esp-12) var(--esp-16);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: var(--rayon-carte);
+  background: var(--couleur-controle);
+  color: var(--couleur-texte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s var(--courbe), border-color 0.2s;
+}
+
+.remplacement__choix:active {
+  transform: scale(0.98);
+  border-color: var(--accent);
+}
+
+.remplacement__infos {
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+}
+
+/* ---------- Ressenti de l'exercice ---------- */
+.ressenti {
+  margin-top: var(--esp-16);
+  animation: message-entree 0.35s var(--courbe-rebond);
+}
+
+.ressenti legend {
+  font-size: var(--texte-petit);
+}
+
+.ressenti .pastille,
+.comparaison__poses .pastille {
+  min-height: 44px;
+  padding: var(--esp-8) var(--esp-16);
+  font-size: var(--texte-petit);
+}
+
+/* ---------- Photos d'évolution ---------- */
+.photos-jour {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--esp-8);
+  margin: var(--esp-8) 0 var(--esp-16);
+}
+
+/* Case photo : toute la case ouvre l'appareil photo ou la galerie */
+.photo-case {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-4);
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1.5px dashed rgb(255 255 255 / 0.25);
+  border-radius: var(--rayon-carte);
+  background: rgb(255 255 255 / 0.03);
+  cursor: pointer;
+  transition: transform 0.15s var(--courbe), border-color 0.2s;
+}
+
+.photo-case:active {
+  transform: scale(0.97);
+}
+
+.photo-case:has(input:focus-visible) {
+  outline: 2px solid var(--couleur-texte);
+  outline-offset: 2px;
+}
+
+.photo-case__plus {
+  font-size: 32px;
+  line-height: 1;
+  color: var(--accent-clair);
+}
+
+.photo-case__nom {
+  font-size: var(--texte-petit);
+}
+
+.photo-case--prise {
+  border-style: solid;
+  border-color: transparent;
+}
+
+.photo-case--prise img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Nom de la pose sur un dégradé sombre en bas de la photo (lisible sur toute image) */
+.photo-case--prise .photo-case__nom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: var(--esp-16) var(--esp-4) var(--esp-4);
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.75));
+  font-size: var(--texte-legende);
+  text-align: center;
+}
+
+.comparaison {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-12);
+  margin-bottom: var(--esp-16);
+  padding-top: var(--esp-16);
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.comparaison__titre {
+  font-size: var(--texte-grand);
+}
+
+.comparaison__dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--esp-8);
+}
+
+.comparaison__date {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+  min-width: 0;
+}
+
+/* Listes de dates étroites : moins de marge pour que la date entière tienne */
+.comparaison__date .champ--liste {
+  padding: 0 var(--esp-32) 0 var(--esp-12);
+  background-position: right 10px center;
+}
+
+.comparaison__images {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--esp-8);
+}
+
+.comparaison__photo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+  margin: 0;
+  animation: message-entree 0.4s var(--courbe);
+}
+
+.comparaison__photo img,
+.comparaison__vide {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--rayon-carte);
+  object-fit: cover;
+}
+
+.comparaison__vide {
+  display: grid;
+  place-items: center;
+  padding: var(--esp-12);
+  background: rgb(255 255 255 / 0.04);
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+  text-align: center;
+}
+
+.comparaison__photo figcaption {
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+  text-align: center;
+}
+
 /* ---------- Effets au défilement (navigateurs qui savent les lier au scroll) ---------- */
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: scroll()) {

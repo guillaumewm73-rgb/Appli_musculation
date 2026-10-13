@@ -78,6 +78,37 @@ const PROGRAMME_DEPART = [
   },
 ];
 
+// Exercices de remplacement (machine prise) : hors programme, retrouvés dans l'historique par leur identifiant.
+// muscles : principal en premier ; demo : identifiant d'une démo, ou null s'il n'y en a pas.
+const ALTERNATIVES = [
+  exo('alt-pompes', 'Pompes', 3, 10, 15, null, { poidsDuCorps: true, muscles: ['pectoraux', 'triceps', 'epaules'], demo: null }),
+  exo('alt-presse-pectorale', 'Presse pectorale machine', 3, 8, 12, null, { muscles: ['pectoraux', 'triceps', 'epaules'], demo: 'pec-machine' }),
+  exo('alt-pec-deck', 'Pec deck (butterfly)', 3, 10, 12, null, { muscles: ['pectoraux'], demo: null }),
+  exo('alt-epaules-machine', 'Développé épaules machine', 3, 8, 12, null, { muscles: ['epaules', 'triceps'], demo: null }),
+  exo('alt-laterales-poulie', 'Élévations latérales à la poulie', 3, 12, 15, null, { muscles: ['epaules'], demo: null }),
+  exo('alt-oiseau', 'Oiseau (arrière d\'épaule)', 3, 12, 15, null, { muscles: ['epaules', 'dos'], demo: null }),
+  exo('alt-barre-front', 'Barre au front', 3, 10, 12, null, { muscles: ['triceps'], demo: null }),
+  exo('alt-extension-corde', 'Extension triceps à la corde', 3, 10, 12, null, { muscles: ['triceps'], demo: 'extension-triceps-poulie' }),
+  exo('alt-tirage-serre', 'Tirage vertical prise serrée', 3, 8, 12, null, { muscles: ['dos', 'biceps'], demo: 'tirage-vertical' }),
+  exo('alt-tractions-assistees', 'Tractions assistées', 3, 6, 10, null, { muscles: ['dos', 'biceps'], demo: 'tractions-supination' }),
+  exo('alt-rowing-machine', 'Rowing machine', 3, 10, 12, null, { muscles: ['dos', 'biceps'], demo: null }),
+  exo('alt-rowing-haltere', 'Rowing haltère un bras', 3, 10, 12, null, { muscles: ['dos', 'biceps'], demo: null }),
+  exo('alt-curl-poulie', 'Curl à la poulie', 3, 10, 12, null, { muscles: ['biceps'], demo: null }),
+  exo('alt-curl-halteres', 'Curl haltères', 3, 10, 12, null, { muscles: ['biceps'], demo: null }),
+  exo('alt-hack-squat', 'Hack squat', 3, 8, 12, null, { muscles: ['quadriceps', 'fessiers'], demo: null }),
+  exo('alt-goblet-squat', 'Goblet squat', 3, 10, 12, null, { muscles: ['quadriceps', 'fessiers'], demo: null }),
+  exo('alt-leg-curl-assis', 'Leg curl assis', 3, 10, 12, null, { muscles: ['ischios'], demo: null }),
+  exo('alt-rdl-halteres', 'Soulevé de terre roumain haltères', 3, 8, 12, null, { muscles: ['ischios', 'fessiers', 'dos'], demo: null }),
+  exo('alt-hip-thrust', 'Hip thrust', 3, 8, 12, null, { muscles: ['fessiers', 'ischios'], demo: null }),
+  exo('alt-mollets-assis', 'Mollets assis', 3, 12, 15, null, { muscles: ['mollets'], demo: null }),
+  exo('alt-mollets-presse', 'Mollets à la presse', 3, 12, 15, null, { muscles: ['mollets'], demo: null }),
+  exo('alt-releves-jambes', 'Relevés de jambes', 3, 10, 15, null, { poidsDuCorps: true, muscles: ['abdos'], demo: null }),
+  exo('alt-crunch-machine', 'Crunch machine', 3, 12, 15, null, { muscles: ['abdos'], demo: null }),
+];
+
+// Ressenti d'un exercice, noté une fois l'exercice terminé (facultatif)
+const RESSENTIS = { facile: 'Facile', correct: 'Correct', dur: 'Dur' };
+
 /* ---------- Données (localStorage) ---------- */
 
 /** Données neuves : programme de départ, historique vide. */
@@ -770,6 +801,44 @@ function derniereFois(historique, seanceId) {
   return dates.length ? dates[dates.length - 1] : null;
 }
 
+const SEPT_JOURS = 7 * 86400000;
+
+/** Texte du rappel si une sauvegarde s'impose (séances ou pesées non sauvegardées), sinon ''. */
+function texteRappelSauvegarde() {
+  const { derniereSauvegarde } = etat.donnees;
+  const activite = Math.max(0, ...entreesHistorique().map((e) => tempsDepuisId(e.id)).filter(Number.isFinite),
+    ...listePoidsCorps().map((e) => tempsDate(e.date)));
+  if (!activite) return '';
+  if (!Number.isFinite(derniereSauvegarde)) return 'Tu n\'as encore jamais sauvegardé.';
+  if (Date.now() - derniereSauvegarde < SEPT_JOURS || activite <= derniereSauvegarde) return '';
+  return `Dernière sauvegarde ${ilYA(derniereSauvegarde)}.`;
+}
+
+/** Carte « Pense à sauvegarder » en haut de l'accueil (créée au besoin). */
+function remplirRappelSauvegarde() {
+  let carte = document.getElementById('rappel-sauvegarde');
+  if (!carte) {
+    carte = creer('section', 'carte rappel');
+    carte.id = 'rappel-sauvegarde';
+    carte.setAttribute('aria-labelledby', 'titre-rappel');
+    document.getElementById('semaine').before(carte);
+  }
+  const texte = texteRappelSauvegarde();
+  carte.hidden = !texte;
+  if (!texte) return;
+  const icone = creer('span', 'rappel__icone');
+  icone.setAttribute('aria-hidden', 'true');
+  icone.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  const titre = creer('h2', 'rappel__titre', 'Pense à sauvegarder');
+  titre.id = 'titre-rappel';
+  const haut = creer('div', 'rappel__haut');
+  haut.append(icone, titre);
+  const bouton = creer('button', 'bouton bouton--principal', 'Sauvegarder maintenant');
+  bouton.type = 'button';
+  bouton.dataset.action = 'sauvegarder-rappel';
+  carte.replaceChildren(haut, creer('p', 'carte__texte', `${texte} Tes séances ne sont que sur ce téléphone : un export les met à l'abri.`), bouton);
+}
+
 /** Écran d'accueil : semaine, séances, tuiles. */
 function afficherAccueil() {
   const { programme, historique } = etat.donnees;
@@ -778,6 +847,7 @@ function afficherAccueil() {
   const faitesCetteSemaine = new Set(historique.filter((e) => e && tempsDepuisId(String(e.id)) >= debut).map((e) => e.seanceId));
   const prochaine = programme.find((s) => !faitesCetteSemaine.has(s.id));
 
+  remplirRappelSauvegarde();
   remplirSemaine();
   remplirTuiles();
   document.getElementById('info-sam').textContent = resumeSam(analyserAvecSam());
@@ -830,6 +900,19 @@ function creerLigneSerie(exercice, serie, i, j) {
   return ligne;
 }
 
+/**
+ * Définition d'un exercice de la séance en cours. Un remplaçant garde l'objectif
+ * (séries, reps) de l'exercice qu'il remplace, sauf s'il se compte autrement (secondes).
+ */
+function definitionSeance(seance, ex) {
+  if (!ex.remplace) return trouverExercice(seance, ex.exerciceId);
+  const remplacant = trouverExerciceDansProgramme(ex.exerciceId);
+  if (!remplacant) return undefined;
+  const original = trouverExercice(seance, ex.remplace) || trouverExerciceDansProgramme(ex.remplace);
+  if (!original || original.unite !== remplacant.unite) return { ...remplacant, series: ex.series.length };
+  return { ...remplacant, series: ex.series.length, repsMin: original.repsMin, repsMax: original.repsMax, note: '' };
+}
+
 /** Carte d'un exercice avec ses séries. */
 function creerCarteExercice(exEnCours, i, definition) {
   const exercice = definition || {
@@ -878,8 +961,30 @@ function creerCarteExercice(exEnCours, i, definition) {
   } else {
     carte.append(haut, cible);
   }
+  if (exEnCours.remplace) {
+    // Remplaçant du jour : on rappelle l'exercice prévu, avec de quoi revenir en arrière
+    const prevu = trouverExerciceDansProgramme(exEnCours.remplace);
+    const ligne = creer('div', 'exercice__remplace');
+    const annuler = creer('button', 'bouton-lien', 'Annuler');
+    annuler.type = 'button';
+    annuler.dataset.annulerRemplacement = String(i);
+    annuler.setAttribute('aria-label', `Annuler le remplacement, revenir à ${prevu ? prevu.nom : 'l\'exercice prévu'}`);
+    ligne.append(creer('span', '', `À la place de : ${prevu ? prevu.nom : 'exercice retiré'}`), annuler);
+    carte.append(ligne);
+  }
   if (definition) carte.append(creerConseilSeance(definition, i));
-  carte.append(series);
+  carte.append(series, creerRessenti(exEnCours, i));
+  if (!exEnCours.remplace && definition) {
+    const remplacer = creer('button', 'bouton-lien exercice__remplacer', 'Machine prise ? Remplacer cet exercice');
+    remplacer.type = 'button';
+    remplacer.dataset.remplacer = String(i);
+    remplacer.setAttribute('aria-expanded', 'false');
+    remplacer.setAttribute('aria-controls', `remplacer-${i}`);
+    const panneau = creer('div', 'remplacement');
+    panneau.id = `remplacer-${i}`;
+    panneau.hidden = true;
+    carte.append(remplacer, panneau);
+  }
   majCarteExercice(carte, exEnCours);
   majRecords(carte, exEnCours, definition);
   return carte;
@@ -916,6 +1021,8 @@ function majCarteExercice(carte, exEnCours) {
   compte.textContent = termine ? 'Terminé' : `${faites}/${total}`;
   const etaitTermine = carte.classList.contains('exercice--termine');
   carte.classList.toggle('exercice--termine', termine);
+  const ressenti = carte.querySelector('.ressenti');
+  if (ressenti) ressenti.hidden = !termine && !exEnCours.ressenti;
   if (termine && !etaitTermine && carte.isConnected) {
     relancerAnimation(compte, 'pop');
     relancerAnimation(carte, 'exercice--brille'); // reflet qui balaie la carte
@@ -952,7 +1059,7 @@ function afficherSeance() {
   const numero = etat.donnees.programme.indexOf(seance) + 1;
 
   const info = creer('p', 'texte-secondaire', `${numero > 0 ? `Séance ${numero} · ` : ''}commencée à ${formaterHeure(enCours.debut)}`);
-  const cartes = enCours.exercices.map((ex, i) => creerCarteExercice(ex, i, trouverExercice(seance, ex.exerciceId)));
+  const cartes = enCours.exercices.map((ex, i) => creerCarteExercice(ex, i, definitionSeance(seance, ex)));
 
   const terminer = creer('button', 'bouton bouton--principal', 'Terminer la séance');
   terminer.type = 'button';
@@ -1745,6 +1852,7 @@ const DEMOS_PAR_MOT = [
 
 /** Démos d'un exercice (plusieurs pour « A ou B »), ou null si on n'en a pas. */
 function demosDe(exercice) {
+  if ('demo' in exercice) return exercice.demo ? DEMOS[exercice.demo] : null; // exercice de remplacement
   if (DEMOS[exercice.id]) return DEMOS[exercice.id];
   const trouve = DEMOS_PAR_MOT.find(([motif]) => motif.test(exercice.nom));
   return trouve ? DEMOS[trouve[1]] : null;
@@ -1799,6 +1907,91 @@ function basculerDemo(bouton) {
   panneau.hidden = !ouvrir;
   bouton.setAttribute('aria-expanded', String(ouvrir));
   if (ouvrir && exercice) remplirDemo(panneau, exercice, i);
+}
+
+/* ---------- Ressenti et remplacement d'exercice ---------- */
+
+/** « Comment c'était ? » : trois pastilles, une fois l'exercice terminé (facultatif). */
+function creerRessenti(exEnCours, i) {
+  const choix = creer('fieldset', 'formulaire__choix ressenti');
+  choix.append(creer('legend', 'etiquette', 'Comment c\'était ?'),
+    ...Object.entries(RESSENTIS).map(([valeur, libelle]) => creerPastille('radio', `ressenti-${i}`, valeur, libelle, exEnCours.ressenti === valeur)));
+  choix.hidden = true;
+  return choix;
+}
+
+/** Remplaçants possibles : même muscle principal, d'abord ceux du programme, puis la liste de l'appli. */
+function remplacantsPossibles(exercice) {
+  const muscle = musclesDe(exercice)[0];
+  const dejaLa = new Set(etat.donnees.enCours.exercices.flatMap((ex) => [ex.exerciceId, ex.remplace]));
+  const memeMuscle = (e) => e && !dejaLa.has(e.id) && musclesDe(e)[0] === muscle;
+  const duProgramme = etat.donnees.programme.flatMap((s) => s.exercices).filter(memeMuscle);
+  return [...duProgramme, ...ALTERNATIVES.filter(memeMuscle)].slice(0, 7);
+}
+
+/** Panneau « Remplacer par » : un bouton par remplaçant. */
+function remplirRemplacement(panneau, i) {
+  const exercice = trouverExerciceDansProgramme(etat.donnees.enCours.exercices[i].exerciceId);
+  const remplacants = exercice ? remplacantsPossibles(exercice) : [];
+  const blocs = [creer('p', 'remplacement__texte', 'Pour aujourd\'hui seulement : ton programme ne change pas.')];
+  if (!remplacants.length) blocs.push(creer('p', 'remplacement__texte', 'Aucun autre exercice pour ce muscle.'));
+  const liste = creer('ul', 'remplacement__liste');
+  for (const remplacant of remplacants) {
+    const bouton = creer('button', 'remplacement__choix');
+    bouton.type = 'button';
+    bouton.dataset.remplacant = remplacant.id;
+    bouton.dataset.exercice = String(i);
+    const muscles = musclesDe(remplacant).map((m) => NOMS_MUSCLES[m]).join(' · ');
+    bouton.append(creer('span', 'remplacement__nom', remplacant.nom),
+      creer('span', 'remplacement__infos', `${muscles}${demosDe(remplacant) ? ' · démo' : ''}`));
+    const item = document.createElement('li');
+    item.append(bouton);
+    liste.append(item);
+  }
+  if (remplacants.length) blocs.push(liste);
+  panneau.replaceChildren(...blocs);
+}
+
+function basculerRemplacement(bouton) {
+  const i = Number(bouton.dataset.remplacer);
+  const panneau = document.getElementById(`remplacer-${i}`);
+  const ouvrir = panneau.hidden;
+  if (ouvrir) remplirRemplacement(panneau, i);
+  panneau.hidden = !ouvrir;
+  bouton.setAttribute('aria-expanded', String(ouvrir));
+}
+
+/**
+ * Met un autre exercice à la place de l'exercice i (remplacantId = l'exercice prévu : on revient au programme).
+ * Les séries sont pré-remplies comme d'habitude ; celles déjà cochées sont effacées après confirmation.
+ */
+function changerExercice(i, remplacantId) {
+  const enCours = etat.donnees.enCours;
+  const actuel = enCours.exercices[i];
+  const prevuId = actuel.remplace || actuel.exerciceId;
+  const faites = actuel.series.filter((s) => s.fait).length;
+  if (faites && !confirm(`${faites} série${faites > 1 ? 's' : ''} déjà cochée${faites > 1 ? 's' : ''} sur cet exercice : elles seront effacées. Continuer ?`)) return;
+
+  const seance = trouverSeance(enCours.seanceId);
+  const prevu = trouverExercice(seance, prevuId) || trouverExerciceDansProgramme(prevuId);
+  const nouveau = remplacantId === prevuId
+    ? { exerciceId: prevuId, series: [] }
+    : { exerciceId: remplacantId, remplace: prevuId, series: Array.from({ length: prevu ? prevu.series : actuel.series.length }) };
+  const definition = definitionSeance(seance, nouveau);
+  if (!definition) return;
+  nouveau.series = preRemplirSeries(definition);
+  enCours.exercices[i] = nouveau;
+  enCours.derniereAction = Date.now();
+  enregistrer();
+
+  const ancienne = document.querySelector(`.exercice[data-exercice="${i}"]`);
+  const carte = creerCarteExercice(nouveau, i, definition);
+  ancienne.replaceWith(carte);
+  if (!mouvementReduit.matches) carte.animate([{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], { duration: 400, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  majAvancement();
+  afficherMessage(remplacantId === prevuId ? `Retour à ${definition.nom}.` : `${definition.nom} à la place de ${prevu ? prevu.nom : 'l\'exercice prévu'}, pour aujourd'hui.`);
+  const suite = carte.querySelector('[data-annuler-remplacement], [data-remplacer]');
+  if (suite) suite.focus({ preventScroll: true });
 }
 
 /* ---------- Actions ---------- */
@@ -2054,7 +2247,7 @@ function trouverExerciceDansProgramme(exerciceId) {
     const exercice = trouverExercice(seance, exerciceId);
     if (exercice) return exercice;
   }
-  return undefined;
+  return ALTERNATIVES.find((e) => e.id === exerciceId); // exercice de remplacement
 }
 
 /** "2026-10-13T18:30" → "18:30" (vide si format inconnu). */
@@ -2124,7 +2317,15 @@ function creerCarteDetail(exHistorique) {
     return ligne;
   }));
   const carte = creer('article', 'carte');
-  carte.append(creer('h2', 'exercice__nom', exercice.nom), liste);
+  carte.append(creer('h2', 'exercice__nom', exercice.nom));
+  const infos = [];
+  if (exHistorique.remplace) {
+    const prevu = trouverExerciceDansProgramme(exHistorique.remplace);
+    infos.push(`À la place de : ${prevu ? prevu.nom : 'exercice retiré'}`);
+  }
+  if (RESSENTIS[exHistorique.ressenti]) infos.push(`Ressenti : ${RESSENTIS[exHistorique.ressenti].toLowerCase()}`);
+  if (infos.length) carte.append(creer('p', 'exercice__cible', infos.join(' · ')));
+  carte.append(liste);
   return carte;
 }
 
@@ -2642,7 +2843,7 @@ function afficherProgression() {
   }
 
   // Par défaut : le dernier exercice regardé, sinon le premier qui a des données
-  let choisi = exercices.find((ex) => ex.id === etat.exerciceProgression);
+  let choisi = [...exercices, ...ALTERNATIVES].find((ex) => ex.id === etat.exerciceProgression);
   if (!choisi) choisi = exercices.find((ex) => pointsProgression(ex.id).length) || exercices[0];
 
   const select = document.createElement('select');
@@ -2652,6 +2853,19 @@ function afficherProgression() {
     const groupe = document.createElement('optgroup');
     groupe.label = seance.nom;
     for (const ex of seance.exercices.filter(Boolean)) {
+      const option = creer('option', '', ex.nom);
+      option.value = ex.id;
+      option.selected = ex.id === choisi.id;
+      groupe.append(option);
+    }
+    select.append(groupe);
+  }
+  const faits = new Set(etat.donnees.historique.flatMap((e) => (e && Array.isArray(e.exercices) ? e.exercices.map((x) => x && x.exerciceId) : [])));
+  const remplacants = ALTERNATIVES.filter((ex) => faits.has(ex.id));
+  if (remplacants.length) {
+    const groupe = document.createElement('optgroup');
+    groupe.label = 'Remplacements';
+    for (const ex of remplacants) {
       const option = creer('option', '', ex.nom);
       option.value = ex.id;
       option.selected = ex.id === choisi.id;
@@ -2784,7 +2998,13 @@ function afficherCorps() {
     blocs.push(carteListe);
   }
 
+  const cartePhotos = creer('article', 'carte');
+  cartePhotos.id = 'carte-photos';
+  cartePhotos.append(creer('h2', 'exercice__nom', 'Photos d\'évolution'));
+  blocs.splice(Math.min(2, blocs.length), 0, cartePhotos); // après la courbe, avant la liste des pesées
+
   document.getElementById('ecran-corps').replaceChildren(...blocs);
+  remplirPhotos();
   // Après l'affichage : la courbe a besoin de la largeur réelle
   montrerEcran('corps', 'Mon corps', 'Retour à l\'accueil', '', dessin);
 }
@@ -2816,6 +3036,274 @@ function supprimerPoidsCorps(date) {
     donnees.poidsCorps = (donnees.poidsCorps || []).filter((e) => e && e.date !== date);
   })) return;
   afficherCorps();
+}
+
+/* ---------- Photos d'évolution (face, profil, dos) ----------
+   Rangées dans IndexedDB (base « suivi_photos ») : bien trop lourdes pour localStorage,
+   où chaque série cochée réécrirait tout. Elles partent dans la sauvegarde exportée,
+   jamais vers Sam ni Claude. Une photo par pose et par jour : { id, date, pose, image }. */
+
+const BASE_PHOTOS = 'suivi_photos';
+const POSES = { face: 'Face', profil: 'Profil', dos: 'Dos' };
+const COTE_PHOTO = 900; // plus grand côté après réduction (px)
+let basePhotos = null;
+let photosEnMemoire = null; // null tant que la base n'a pas été lue
+
+function ouvrirBasePhotos() {
+  if (!basePhotos) {
+    basePhotos = new Promise((resoudre, rejeter) => {
+      if (!('indexedDB' in window)) {
+        rejeter(new Error('IndexedDB indisponible'));
+        return;
+      }
+      const demande = indexedDB.open(BASE_PHOTOS, 1);
+      demande.onupgradeneeded = () => {
+        demande.result.createObjectStore('photos', { keyPath: 'id' });
+        demande.result.createObjectStore('secours'); // photos d'avant le dernier import
+      };
+      demande.onsuccess = () => resoudre(demande.result);
+      demande.onerror = () => rejeter(demande.error);
+    });
+    basePhotos.catch(() => { basePhotos = null; }); // on retentera la prochaine fois
+  }
+  return basePhotos;
+}
+
+/** Une transaction sur un magasin ; renvoie le résultat de la requête rendue par action (s'il y en a une). */
+async function operationPhotos(magasin, mode, action) {
+  const base = await ouvrirBasePhotos();
+  return new Promise((resoudre, rejeter) => {
+    const transaction = base.transaction(magasin, mode);
+    const requete = action(transaction.objectStore(magasin));
+    transaction.oncomplete = () => resoudre(requete ? requete.result : undefined);
+    transaction.onerror = () => rejeter(transaction.error);
+    transaction.onabort = () => rejeter(transaction.error || new Error('Transaction annulée'));
+  });
+}
+
+function photoValide(p) {
+  return Boolean(p) && /^\d{4}-\d{2}-\d{2}$/.test(p.date) && Object.hasOwn(POSES, p.pose) && p.id === `${p.date}_${p.pose}`
+    && typeof p.image === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(p.image) && p.image.length < 8e6;
+}
+
+const triPhotos = (liste) => [...liste].sort((a, b) => (a.id < b.id ? -1 : 1));
+
+/** Toutes les photos, de la plus ancienne à la plus récente. */
+async function lirePhotos() {
+  if (!photosEnMemoire) photosEnMemoire = triPhotos((await operationPhotos('photos', 'readonly', (m) => m.getAll())).filter(photoValide));
+  return photosEnMemoire;
+}
+
+/** Réduit une photo (900 px, JPEG) : 100 à 150 Ko au lieu de plusieurs Mo. */
+async function reduirePhoto(fichier) {
+  const url = URL.createObjectURL(fichier);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const echelle = Math.min(1, COTE_PHOTO / Math.max(image.naturalWidth, image.naturalHeight));
+    const toile = document.createElement('canvas');
+    toile.width = Math.round(image.naturalWidth * echelle);
+    toile.height = Math.round(image.naturalHeight * echelle);
+    toile.getContext('2d').drawImage(image, 0, 0, toile.width, toile.height);
+    return toile.toDataURL('image/jpeg', 0.75);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Photo choisie pour une pose : réduite, enregistrée (remplace celle du jour), affichée. */
+async function ajouterPhoto(input) {
+  const fichier = input.files && input.files[0];
+  const pose = input.dataset.pose;
+  input.value = ''; // permet de reprendre la même photo
+  if (!fichier || !Object.hasOwn(POSES, pose)) return;
+  const date = dateDuJour();
+  try {
+    const photo = { id: `${date}_${pose}`, date, pose, image: await reduirePhoto(fichier) };
+    await operationPhotos('photos', 'readwrite', (m) => m.put(photo));
+    const liste = await lirePhotos();
+    photosEnMemoire = triPhotos([...liste.filter((p) => p.id !== photo.id), photo]);
+    afficherMessage(`Photo de ${POSES[pose].toLowerCase()} du ${formaterDate(date)} enregistrée.`);
+  } catch (erreur) {
+    afficherMessage(erreur && erreur.name === 'QuotaExceededError'
+      ? 'Stockage du téléphone plein : photo non enregistrée.'
+      : 'Photo illisible ou stockage indisponible : réessaie.');
+  }
+  remplirPhotos();
+}
+
+async function supprimerPhotosDu(date) {
+  if (!confirm(`Supprimer les photos du ${formaterDate(date)} ? C'est définitif (sauf si elles sont dans une sauvegarde).`)) return;
+  try {
+    await operationPhotos('photos', 'readwrite', (m) => {
+      for (const pose of Object.keys(POSES)) m.delete(`${date}_${pose}`);
+    });
+    photosEnMemoire = (photosEnMemoire || []).filter((p) => p.date !== date);
+    afficherMessage(`Photos du ${formaterDate(date)} supprimées.`);
+  } catch {
+    afficherMessage('Suppression impossible : réessaie.');
+  }
+  remplirPhotos();
+}
+
+/** Import : les photos actuelles passent en copie de secours, celles du fichier les remplacent. */
+async function remplacerPhotos(liste) {
+  const actuelles = await lirePhotos();
+  await operationPhotos('secours', 'readwrite', (m) => m.put(actuelles, 'photos'));
+  await operationPhotos('photos', 'readwrite', (m) => {
+    m.clear();
+    for (const photo of liste) m.put(photo);
+  });
+  photosEnMemoire = triPhotos(liste);
+}
+
+/** Retour à la copie de secours : remet les photos d'avant l'import, s'il y en a. */
+async function restaurerPhotosSecours() {
+  const secours = await operationPhotos('secours', 'readonly', (m) => m.get('photos'));
+  if (!Array.isArray(secours)) return;
+  await operationPhotos('photos', 'readwrite', (m) => {
+    m.clear();
+    for (const photo of secours.filter(photoValide)) m.put(photo);
+  });
+  await operationPhotos('secours', 'readwrite', (m) => m.delete('photos'));
+  photosEnMemoire = null;
+}
+
+/** Poids de corps le plus proche d'une date (7 jours d'écart au plus), ou null. */
+function poidsVers(date) {
+  const temps = tempsDate(date);
+  let proche = null;
+  for (const e of listePoidsCorps()) {
+    const ecart = Math.abs(tempsDate(e.date) - temps);
+    if (ecart <= SEPT_JOURS && (!proche || ecart < proche.ecart)) proche = { poids: e.poids, ecart };
+  }
+  return proche ? proche.poids : null;
+}
+
+/** Photo d'une date et d'une pose, avec la date et le poids du moment ; un cadre vide si elle manque. */
+function creerFigurePhoto(liste, date, pose) {
+  const figure = creer('figure', 'comparaison__photo');
+  const photo = liste.find((p) => p.id === `${date}_${pose}`);
+  if (photo) {
+    const image = document.createElement('img');
+    image.src = photo.image;
+    image.alt = `${POSES[pose]}, le ${formaterDate(date)}`;
+    figure.append(image);
+  } else {
+    figure.append(creer('div', 'comparaison__vide', `Pas de photo de ${POSES[pose].toLowerCase()} ce jour-là`));
+  }
+  const poids = poidsVers(date);
+  figure.append(creer('figcaption', '', `${formaterDate(date)}${poids !== null ? ` · ${formaterNombre(poids)} kg` : ''}`));
+  return figure;
+}
+
+/** Avant / après : deux dates au choix, une pose, côte à côte. */
+function creerComparaison(liste, dates) {
+  const choix = etat.comparaison || (etat.comparaison = {});
+  const avant = dates.includes(choix.avant) ? choix.avant : dates[0];
+  const apres = dates.includes(choix.apres) ? choix.apres : dates[dates.length - 1];
+  const pose = Object.hasOwn(POSES, choix.pose) ? choix.pose : 'face';
+
+  const selecteurs = creer('div', 'comparaison__dates');
+  for (const [cle, libelle, valeur] of [['avant', 'Avant', avant], ['apres', 'Après', apres]]) {
+    const select = creer('select', 'champ champ--liste');
+    select.id = `comparer-${cle}`;
+    select.dataset.comparer = cle;
+    for (const date of dates) {
+      const option = creer('option', '', formaterDate(date));
+      option.value = date;
+      option.selected = date === valeur;
+      select.append(option);
+    }
+    const etiquette = creer('label', 'etiquette', libelle);
+    etiquette.htmlFor = select.id;
+    const bloc = creer('div', 'comparaison__date');
+    bloc.append(etiquette, select);
+    selecteurs.append(bloc);
+  }
+  const poses = creer('fieldset', 'formulaire__choix comparaison__poses');
+  poses.append(creer('legend', 'visuellement-cache', 'Pose à comparer'),
+    ...Object.entries(POSES).map(([valeur, nom]) => creerPastille('radio', 'pose-comparaison', valeur, nom, valeur === pose)));
+
+  const images = creer('div', 'comparaison__images');
+  images.append(creerFigurePhoto(liste, avant, pose), creerFigurePhoto(liste, apres, pose));
+
+  const bloc = creer('div', 'comparaison');
+  bloc.append(creer('h3', 'comparaison__titre', 'Avant / après'), selecteurs, poses, images);
+  const [poidsAvant, poidsApres] = [poidsVers(avant), poidsVers(apres)];
+  const semaines = Math.round((tempsDate(apres) - tempsDate(avant)) / SEPT_JOURS);
+  if (poidsAvant !== null && poidsApres !== null && avant !== apres) {
+    bloc.append(creer('p', 'exercice__cible', `${formaterEcart(Math.round((poidsApres - poidsAvant) * 10) / 10)} kg en ${semaines > 0 ? `${semaines} semaine${semaines > 1 ? 's' : ''}` : 'moins d\'une semaine'}.`));
+  }
+  return bloc;
+}
+
+/** Carte « Photos d'évolution » de l'écran Mon corps (remplie dès que la base est lue). */
+async function remplirPhotos() {
+  const carte = document.getElementById('carte-photos');
+  if (!carte) return;
+  const titre = creer('h2', 'exercice__nom', 'Photos d\'évolution');
+  let liste;
+  try {
+    liste = await lirePhotos();
+  } catch {
+    carte.replaceChildren(titre, creer('p', 'carte__texte', 'Photos indisponibles sur ce navigateur (stockage bloqué).'));
+    return;
+  }
+  if (!carte.isConnected) return;
+
+  // Les trois poses du jour : toucher une case ouvre l'appareil photo ou la galerie
+  const aujourdhui = dateDuJour();
+  const jour = creer('div', 'photos-jour');
+  for (const [pose, nom] of Object.entries(POSES)) {
+    const photo = liste.find((p) => p.id === `${aujourdhui}_${pose}`);
+    const caseP = creer('label', `photo-case${photo ? ' photo-case--prise' : ''}`);
+    const input = creer('input', 'visuellement-cache');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.dataset.pose = pose;
+    let visuel;
+    if (photo) {
+      visuel = document.createElement('img');
+      visuel.src = photo.image;
+      visuel.alt = '';
+    } else {
+      visuel = creer('span', 'photo-case__plus');
+      visuel.setAttribute('aria-hidden', 'true');
+      visuel.textContent = '+';
+    }
+    caseP.append(input, visuel, creer('span', 'photo-case__nom', photo ? `${nom} · refaire` : nom));
+    jour.append(caseP);
+  }
+  const blocs = [
+    titre,
+    creer('p', 'exercice__cible', 'Face, profil, dos : même endroit, même lumière, toutes les 2 à 4 semaines. Les photos restent sur ce téléphone et vont dans ta sauvegarde, jamais chez Sam.'),
+    creer('p', 'etiquette', `Aujourd'hui · ${formaterDate(aujourdhui)}`),
+    jour,
+  ];
+
+  const dates = [...new Set(liste.map((p) => p.date))].sort();
+  if (dates.length >= 2) blocs.push(creerComparaison(liste, dates));
+  if (dates.length) {
+    const tableau = creer('table', 'tableau');
+    const corps = document.createElement('tbody');
+    for (const date of [...dates].reverse()) {
+      const nb = liste.filter((p) => p.date === date).length;
+      const supprimer = creer('button', 'bouton-mini', 'Supprimer');
+      supprimer.type = 'button';
+      supprimer.dataset.supprimerPhotos = date;
+      supprimer.setAttribute('aria-label', `Supprimer les photos du ${formaterDate(date)}`);
+      const cellule = creer('td', 'tableau__action');
+      cellule.append(supprimer);
+      const ligne = document.createElement('tr');
+      ligne.append(creer('td', '', formaterDate(date)), creer('td', '', `${nb} photo${nb > 1 ? 's' : ''}`), cellule);
+      corps.append(ligne);
+    }
+    tableau.append(creer('caption', 'visuellement-cache', 'Séances photo, la plus récente en premier'), corps);
+    blocs.push(tableau);
+  }
+  carte.replaceChildren(...blocs);
 }
 
 /* ---------- Édition du programme ---------- */
@@ -3116,6 +3604,8 @@ function entreeImportValide(e) {
     && (e.dureeMin === undefined || estNombreOuNull(e.dureeMin))
     && Array.isArray(e.exercices)
     && e.exercices.every((x) => x && estTexte(x.exerciceId) && Array.isArray(x.series)
+      && (x.remplace === undefined || estTexte(x.remplace))
+      && (x.ressenti === undefined || Object.hasOwn(RESSENTIS, x.ressenti))
       && x.series.every((serie) => serie && estNombreOuNull(serie.poids ?? null)
         && estNombreOuNull(serie.reps ?? null) && typeof (serie.fait ?? false) === 'boolean'));
 }
@@ -3143,12 +3633,15 @@ function validerImport(brut) {
   if (!brut.historique.every(entreeImportValide)) return { erreur: abime };
   if (brut.poidsCorps !== undefined && !(Array.isArray(brut.poidsCorps) && brut.poidsCorps.every((e) => e
     && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && typeof e.poids === 'number' && Number.isFinite(e.poids)))) return { erreur: abime };
+  if (brut.photos !== undefined && !(Array.isArray(brut.photos) && brut.photos.every(photoValide))) return { erreur: abime };
 
   const donnees = migrer({ version: brut.version, programme, historique: brut.historique });
   if (brut.enCours && seanceEnCoursValide(brut.enCours)) donnees.enCours = brut.enCours;
   if (Number.isFinite(brut.derniereSauvegarde)) donnees.derniereSauvegarde = brut.derniereSauvegarde;
   if (Array.isArray(brut.poidsCorps)) donnees.poidsCorps = brut.poidsCorps.map((e) => ({ date: e.date, poids: e.poids }));
-  return { donnees };
+  // Photos : à part (IndexedDB) ; absentes du fichier = on garde celles du téléphone
+  const photos = Array.isArray(brut.photos) ? brut.photos.map(({ id, date, pose, image }) => ({ id, date, pose, image })) : undefined;
+  return { donnees, photos };
 }
 
 /** « aujourd'hui », « hier », « il y a 5 jours ». */
@@ -3175,8 +3668,14 @@ function lireCopieAvantImport() {
 
 /** Ouvre la feuille de partage (iPhone, Android) ou télécharge le fichier. */
 async function exporterDonnees() {
+  let photos = [];
+  try {
+    photos = await lirePhotos();
+  } catch {
+    // pas de photos sur ce navigateur
+  }
   const fichier = new File(
-    [JSON.stringify(etat.donnees, null, 2)],
+    [JSON.stringify(photos.length ? { ...etat.donnees, photos } : etat.donnees, null, 2)],
     `suivi-seances-${idSeance(Date.now()).slice(0, 10)}.json`,
     { type: 'application/json' },
   );
@@ -3193,6 +3692,7 @@ async function exporterDonnees() {
   etat.donnees.derniereSauvegarde = Date.now();
   enregistrer();
   remplirSauvegarde();
+  remplirRappelSauvegarde();
   afficherMessage('Sauvegarde exportée. Garde le fichier en lieu sûr (Fichiers, iCloud, mail…).');
 }
 
@@ -3214,7 +3714,7 @@ async function importerFichier(fichier) {
     alert('Stockage indisponible : import impossible.');
     return;
   }
-  if (fichier.size > 5 * 1024 * 1024) {
+  if (fichier.size > 200 * 1024 * 1024) {
     alert('Fichier trop gros pour être une sauvegarde de l\'appli.');
     return;
   }
@@ -3225,16 +3725,17 @@ async function importerFichier(fichier) {
     alert('Fichier illisible : choisis un fichier .json exporté par l\'appli.');
     return;
   }
-  const { donnees, erreur } = validerImport(brut);
+  const { donnees, photos, erreur } = validerImport(brut);
   if (erreur) {
     alert(erreur);
     return;
   }
   const nbFichier = donnees.historique.length;
   const nbActuel = etat.donnees.historique.length;
+  const textePhotos = photos ? `Photos : ${photos.length} dans le fichier (elles remplacent celles du téléphone).\n` : '';
   if (!confirm(`Remplacer toutes les données de l'appli par ce fichier ?\n\n`
     + `Fichier : ${nbFichier} séance${nbFichier > 1 ? 's' : ''} dans l'historique.\n`
-    + `Actuellement : ${nbActuel} séance${nbActuel > 1 ? 's' : ''}.\n\n`
+    + `Actuellement : ${nbActuel} séance${nbActuel > 1 ? 's' : ''}.\n${textePhotos}\n`
     + 'Tes données actuelles sont gardées en copie de secours.')) return;
 
   // Jamais de remplacement sans copie de secours
@@ -3251,8 +3752,16 @@ async function importerFichier(fichier) {
     alert('Stockage de l\'appli plein : import annulé, rien n\'a changé.');
     return;
   }
+  let alertePhotos = '';
+  if (photos) {
+    try {
+      await remplacerPhotos(photos);
+    } catch {
+      alertePhotos = ' Les photos n\'ont pas pu être enregistrées (stockage plein ou bloqué).';
+    }
+  }
   afficherAccueil();
-  afficherMessage(`Import réussi : ${nbFichier} séance${nbFichier > 1 ? 's' : ''} dans l'historique.`);
+  afficherMessage(`Import réussi : ${nbFichier} séance${nbFichier > 1 ? 's' : ''} dans l'historique${photos && !alertePhotos ? `, ${photos.length} photo${photos.length > 1 ? 's' : ''}` : ''}.${alertePhotos}`);
 }
 
 /** Revient aux données d'avant le dernier import. */
@@ -3272,6 +3781,7 @@ function restaurerCopieAvantImport() {
     return;
   }
   localStorage.removeItem(CLE_AVANT_IMPORT);
+  restaurerPhotosSecours().catch(() => {}); // photos d'avant l'import, s'il y en avait
   afficherAccueil();
   afficherMessage('Données d\'avant l\'import restaurées.');
 }
@@ -3290,7 +3800,8 @@ function remplirSauvegarde() {
     creer('p', 'exercice__cible', Number.isFinite(derniereSauvegarde)
       ? `Dernière sauvegarde : ${formaterDate(idSeance(derniereSauvegarde))} (${ilYA(derniereSauvegarde)})`
       : 'Jamais sauvegardé.'),
-    creer('p', 'carte__texte', `Un fichier avec ton programme et ${nb} séance${nb > 1 ? 's' : ''} d'historique. `
+    creer('p', 'carte__texte', `Un fichier avec ton programme, ${nb} séance${nb > 1 ? 's' : ''} d'historique`
+      + `${photosEnMemoire && photosEnMemoire.length ? ` et ${photosEnMemoire.length} photo${photosEnMemoire.length > 1 ? 's' : ''}` : ''}. `
       + 'Sur iPhone : « Enregistrer dans Fichiers » ou envoie-le-toi par mail.'),
     exporter,
   );
@@ -3442,6 +3953,7 @@ function reposConseille(exercice) {
 }
 
 function musclesDe(exercice) {
+  if (exercice.muscles) return exercice.muscles;
   if (MUSCLES_EXERCICES[exercice.id]) return MUSCLES_EXERCICES[exercice.id];
   const trouve = MUSCLES_PAR_MOT.find(([motif]) => motif.test(exercice.nom));
   return trouve ? trouve[1] : [];
@@ -3455,7 +3967,7 @@ function seancesExercice(exerciceId, combien) {
   for (const entree of entreesHistorique()) {
     const ex = entree.exercices.find((e) => e && e.exerciceId === exerciceId);
     const faites = ex ? ex.series.filter((s) => s.fait) : [];
-    if (faites.length) resultat.push({ id: entree.id, series: faites });
+    if (faites.length) resultat.push({ id: entree.id, series: faites, ressenti: ex.ressenti });
     if (resultat.length >= combien) break;
   }
   return resultat;
@@ -3508,6 +4020,20 @@ function conseilCharge(exercice) {
 
   // Règle de l'appli : haut de fourchette partout → +2 kg (+1 kg en isolation)
   const iso = estIsolation(exercice);
+  const ressenti = passees[0].ressenti;
+  if (toutesFaites && reps.every((r) => r >= haut) && ressenti === 'dur') {
+    return {
+      type: 'garder', court: `Reste à ${formaterNombre(poids)} kg`,
+      texte: `${resume} : haut de fourchette atteint, mais c'était dur. Garde ${formaterNombre(poids)} kg une séance de plus, puis monte.`,
+    };
+  }
+  if (toutesFaites && reps.every((r) => r >= exercice.repsMin) && ressenti === 'facile' && !reps.every((r) => r >= haut)) {
+    const nouveau = poids + (iso ? 1 : 2);
+    return {
+      type: 'monter', poids: nouveau, court: `Passe à ${formaterNombre(nouveau)} kg`,
+      texte: `${resume} : toutes tes séries dans la fourchette et c'était facile. Passe à ${formaterNombre(nouveau)} kg (+${iso ? 1 : 2} kg).`,
+    };
+  }
   if (toutesFaites && reps.every((r) => r >= haut)) {
     const nouveau = poids + (iso ? 1 : 2);
     return {
@@ -3574,7 +4100,7 @@ function exercicesSautes() {
     if (dernieres.length < 2) continue;
     for (const exercice of seance.exercices.filter(Boolean)) {
       const fois = dernieres.filter((e) => {
-        const ex = e.exercices.find((x) => x && x.exerciceId === exercice.id);
+        const ex = e.exercices.find((x) => x && (x.exerciceId === exercice.id || x.remplace === exercice.id));
         return !ex || !ex.series.some((s) => s.fait);
       }).length;
       if (fois >= 2) sautes.push({ exercice, seance, fois, sur: dernieres.length });
@@ -3891,7 +4417,10 @@ function ligneHistoriqueSam(entree) {
   const exercices = entree.exercices.map((ex) => {
     const exercice = trouverExerciceDansProgramme(ex.exerciceId) || { nom: ex.exerciceId, unite: 'reps', poidsDuCorps: false };
     const series = ex.series.map((s) => `${texteSerie(exercice, s)}${s.fait ? '' : ' (non faite)'}`).join(' ; ');
-    return `  - ${exercice.nom} : ${series}`;
+    const prevu = ex.remplace ? trouverExerciceDansProgramme(ex.remplace) : null;
+    const remplace = ex.remplace ? ` (à la place de ${prevu ? prevu.nom : ex.remplace})` : '';
+    const ressenti = RESSENTIS[ex.ressenti] ? ` · ressenti : ${RESSENTIS[ex.ressenti].toLowerCase()}` : '';
+    return `  - ${exercice.nom}${remplace} : ${series}${ressenti}`;
   });
   const duree = texteDuree(entree);
   return [`${formaterDate(entree.id)} ${heureDepuisId(entree.id)} · ${nomSeance(entree.seanceId)}${duree ? ` · ${duree}` : ''}`, ...exercices].join('\n');
@@ -4318,6 +4847,7 @@ async function enregistrerServiceWorker() {
 /* ---------- Démarrage ---------- */
 
 const etat = chargerDonnees();
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; // l'appli s'ouvre toujours en haut de l'écran
 
 // Page en cache plus ancienne que le script (la mise à jour arrive en deux temps) : on crée les écrans manquants
 for (const nom of ECRANS) {
@@ -4335,6 +4865,10 @@ document.getElementById('liste-seances').addEventListener('click', (evenement) =
 });
 
 document.getElementById('bouton-retour').addEventListener('click', retour);
+
+document.getElementById('ecran-accueil').addEventListener('click', (evenement) => {
+  if (evenement.target.closest('[data-action="sauvegarder-rappel"]')) exporterDonnees();
+});
 
 document.getElementById('bouton-historique').addEventListener('click', () => {
   afficherMessage('');
@@ -4422,6 +4956,18 @@ ecranCorps.addEventListener('submit', (evenement) => {
 ecranCorps.addEventListener('click', (evenement) => {
   const bouton = evenement.target.closest('[data-supprimer-poids]');
   if (bouton) supprimerPoidsCorps(bouton.dataset.supprimerPoids);
+  const photos = evenement.target.closest('[data-supprimer-photos]');
+  if (photos) supprimerPhotosDu(photos.dataset.supprimerPhotos);
+});
+ecranCorps.addEventListener('change', (evenement) => {
+  const cible = evenement.target;
+  if (cible.matches('input[type="file"][data-pose]')) ajouterPhoto(cible);
+  else if (cible.dataset.comparer || cible.name === 'pose-comparaison') {
+    const choix = etat.comparaison || (etat.comparaison = {});
+    if (cible.dataset.comparer) choix[cible.dataset.comparer] = cible.value;
+    else choix.pose = cible.value;
+    remplirPhotos();
+  }
 });
 
 document.getElementById('bouton-sam').addEventListener('click', () => {
@@ -4513,6 +5059,11 @@ ecranSeance.addEventListener('change', (evenement) => {
   else if (evenement.target.name && evenement.target.name.startsWith('barre-')) {
     etat.barre = Number(evenement.target.value);
     majAideCharge(Number(evenement.target.name.slice(6)));
+  } else if (evenement.target.name && evenement.target.name.startsWith('ressenti-')) {
+    // Ressenti de l'exercice : gardé avec ses séries, lu par Sam
+    etat.donnees.enCours.exercices[Number(evenement.target.name.slice(9))].ressenti = evenement.target.value;
+    etat.donnees.enCours.derniereAction = Date.now();
+    enregistrer();
   } else if (evenement.target.name && evenement.target.name.startsWith('variante-')) {
     // Exercice « A ou B » : on montre l'autre mouvement
     const i = Number(evenement.target.name.slice(9));
@@ -4543,6 +5094,22 @@ ecranSeance.addEventListener('click', (evenement) => {
   const demoBouton = evenement.target.closest('[data-demo]');
   if (demoBouton) {
     basculerDemo(demoBouton);
+    return;
+  }
+  const remplacer = evenement.target.closest('[data-remplacer]');
+  if (remplacer) {
+    basculerRemplacement(remplacer);
+    return;
+  }
+  const remplacant = evenement.target.closest('[data-remplacant]');
+  if (remplacant) {
+    changerExercice(Number(remplacant.dataset.exercice), remplacant.dataset.remplacant);
+    return;
+  }
+  const annuler = evenement.target.closest('[data-annuler-remplacement]');
+  if (annuler) {
+    const i = Number(annuler.dataset.annulerRemplacement);
+    changerExercice(i, etat.donnees.enCours.exercices[i].remplace);
     return;
   }
   const action = evenement.target.closest('[data-action]');
@@ -4593,4 +5160,5 @@ if (enCoursAuDemarrage) {
 afficherMessage(etat.alerte);
 requestAnimationFrame(() => { transitionsActives = true; }); // premier affichage fait : les transitions peuvent jouer
 
+lirePhotos().catch(() => {});
 enregistrerServiceWorker();

@@ -13,7 +13,7 @@ Le projet doit rester simple, rapide à ouvrir et utilisable sans connexion.
 ## Contraintes techniques (à respecter)
 - HTML + CSS + JavaScript vanilla. Pas de framework, pas de build, pas de dépendance externe.
 - Un dossier avec : `index.html`, `style.css`, `app.js`, `manifest.webmanifest`, `sw.js`, `icons/`.
-- Stockage local via `localStorage` (clés préfixées `suivi_`). Aucune donnée envoyée à un serveur, sauf la discussion avec Sam (voir plus bas), uniquement quand Guillaume pose une question.
+- Stockage local via `localStorage` (clés préfixées `suivi_`), sauf les photos (IndexedDB `suivi_photos`). Aucune donnée envoyée à un serveur, sauf la discussion avec Sam (voir plus bas), uniquement quand Guillaume pose une question.
 - Fonctionne hors ligne grâce à un service worker (cache de l'appli).
 - Installable sur l'écran d'accueil (manifest + icônes 192 et 512 px).
 - Mobile first : gros boutons (min 44 px), texte lisible, thème sombre par défaut.
@@ -102,6 +102,12 @@ Analyse du style des applis de référence (détail dans `DESIGN.md`), puis :
 - Une démo = position de départ + position d'arrivée + matériel (barre, haltères, poulie, banc, machine) ; l'appli anime entre les deux et trace le trajet de la charge en pointillés.
 - Exercices « A ou B » : les deux mouvements, au choix. Exercice ajouté à la main : démo devinée d'après le nom, sinon pas de bouton.
 - « Réduire les animations » : départ et arrivée côte à côte, sans mouvement.
+
+## Sauvegarde, remplacement, ressenti, photos (13/10/2026, validés par Guillaume)
+- **Rappel de sauvegarde** sur l'accueil : jamais sauvegardé, ou plus de 7 jours depuis le dernier export avec des séances/pesées ajoutées depuis. Bouton « Sauvegarder maintenant ».
+- **Remplacer un exercice** en séance (« Machine prise ? ») : liste d'alternatives du même muscle principal (exercices du programme + liste `ALTERNATIVES` de l'appli, ids `alt-…`). Pour aujourd'hui seulement. Décision de données : l'exercice de la séance devient `{ exerciceId: <remplaçant>, remplace: <exercice prévu>, series }` ; le remplaçant garde l'objectif de l'exercice prévu ; ses courbes et records sont à part. Un exercice remplacé n'est pas compté comme « sauté » par Sam.
+- **Ressenti** : un par exercice, facultatif, proposé quand toutes les séries sont cochées. Décision de données : champ `ressenti` (`"facile"`, `"correct"` ou `"dur"`) dans l'exercice de la séance. Sam : « dur » au haut de fourchette → garder ; « facile » avec toutes les séries dans la fourchette → monter.
+- **Photos d'évolution** (Mon corps) : face + profil + dos par date, réduites à 900 px (JPEG), comparaison avant/après par pose avec le poids du moment. Décision : rangées dans IndexedDB (base `suivi_photos`, trop lourdes pour localStorage), **incluses dans la sauvegarde exportée** (champ `photos: [{ id, date, pose, image }]`), vérifiées à l'import (photos absentes du fichier = celles du téléphone gardées ; photos d'avant import gardées en copie de secours). Jamais envoyées à Sam ni à Claude.
 
 ## Fonctionnalités — version 2 (plus tard, ne pas faire d'office)
 - Notes par séance (fatigue, sommeil, douleurs).
