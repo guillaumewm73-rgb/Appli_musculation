@@ -13,7 +13,7 @@ Le projet doit rester simple, rapide à ouvrir et utilisable sans connexion.
 ## Contraintes techniques (à respecter)
 - HTML + CSS + JavaScript vanilla. Pas de framework, pas de build, pas de dépendance externe.
 - Un dossier avec : `index.html`, `style.css`, `app.js`, `manifest.webmanifest`, `sw.js`, `icons/`.
-- Stockage local via `localStorage` (clés préfixées `suivi_`). Aucune donnée envoyée à un serveur.
+- Stockage local via `localStorage` (clés préfixées `suivi_`). Aucune donnée envoyée à un serveur, sauf la discussion avec Sam (voir plus bas), uniquement quand Guillaume pose une question.
 - Fonctionne hors ligne grâce à un service worker (cache de l'appli).
 - Installable sur l'écran d'accueil (manifest + icônes 192 et 512 px).
 - Mobile first : gros boutons (min 44 px), texte lisible, thème sombre par défaut.
@@ -75,6 +75,11 @@ Données initiales à charger au premier lancement. Les poids sont ceux de mes d
 5. **Progression** : pour un exercice choisi, courbe simple du meilleur poids dans le temps (canvas ou SVG maison, pas de librairie).
 6. **Édition du programme** : ajouter, retirer, renommer ou réordonner un exercice, changer les séries et reps cibles.
 7. **Export / import JSON** : sauvegarde et restauration de toutes les données (indispensable car tout est local).
+
+## Sam, le coach (validé par Guillaume le 13/10/2026)
+- **Conseils locaux** (hors ligne, rien ne sort du téléphone) : charge à monter/garder/baisser (règle +2 kg polyarticulaire, +1 kg isolation quand le haut de fourchette est atteint partout ; baisse si sous le bas de fourchette deux séances de suite ; stagnation sur 3 séances), repos conseillé par exercice, équilibre du programme (séries par muscle, repère 10-20), exercices souvent sautés, records, régularité, astuce du jour. Dans la séance : repos + conseil avec bouton « Appliquer ».
+- **Discussion IA** : API Claude appelée depuis le navigateur (`fetch`, pas de SDK car ni dépendance ni build), modèle `claude-haiku-5-5` (choisi par Guillaume), effort `medium`. Envoie le prénom, le programme, les séances des 12 dernières semaines et les analyses locales. Conversation en ajout seul (consignes figées par discussion, blocs de réflexion renvoyés tels quels).
+- Clé API dans `suivi_sam_cle`, discussion dans `suivi_sam_discussion` : hors de `suivi_donnees`, donc jamais exportées.
 
 ## Fonctionnalités — version 2 (plus tard, ne pas faire d'office)
 - Minuteur de repos entre les séries (60-120 s), avec vibration.

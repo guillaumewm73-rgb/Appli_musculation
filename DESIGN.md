@@ -23,6 +23,7 @@ Les jetons (tokens) sont en tête de `style.css`.
 - **Lueurs** autorisées sous les éléments colorés (pastilles, coches, bouton principal) ; les cartes restent sans ombre.
 - **Mouvement** : courbe `cubic-bezier(.2,.8,.2,1)`, rebond `cubic-bezier(.34,1.56,.64,1)`, 150-600 ms. Cartes qui apparaissent au défilement, titre qui glisse et se compacte, coche qui « pop » et se dessine, barre d'avancement, tracé de la courbe, confettis en fin de séance.
 - **Réglage « Réduire les animations »** du téléphone : toutes les animations deviennent immédiates, pas de confettis.
+- **Sam, le coach** : avatar rond « S » dans le dégradé de l'appli (cobalt → violet), halo qui respire sur l'accueil. Bulles de discussion : les tiennes en dégradé à droite, celles de Sam en graphite à gauche. Pastilles de conseil toujours avec un mot (« Monter », « Baisser », « Stagnation », « Sauté », « À ajouter ») : la couleur n'est jamais le seul repère.
 
 ## Règles appliquées (v1)
 

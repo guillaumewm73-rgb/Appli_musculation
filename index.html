@@ -37,6 +37,16 @@
     <section id="ecran-accueil" class="ecran">
       <section id="semaine" class="carte semaine" aria-labelledby="titre-semaine"></section>
 
+      <button id="bouton-sam" class="seance carte-sam" type="button">
+        <span class="pastille-seance avatar-sam" aria-hidden="true">S</span>
+        <span class="seance__textes">
+          <span class="seance__numero">Ton coach</span>
+          <span class="seance__nom">Sam</span>
+          <span id="info-sam" class="seance__infos"></span>
+        </span>
+        <svg class="seance__fleche" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
       <h2 class="titre-section">Tes séances</h2>
       <ul id="liste-seances" class="liste-seances" aria-label="Séances"></ul>
 
@@ -72,6 +82,8 @@
     <section id="ecran-programme" class="ecran" aria-labelledby="titre-ecran" hidden></section>
     <section id="ecran-exercice" class="ecran" aria-labelledby="titre-ecran" hidden></section>
     <section id="ecran-sauvegarde" class="ecran" aria-labelledby="titre-ecran" hidden></section>
+    <section id="ecran-sam" class="ecran" aria-labelledby="titre-ecran" hidden></section>
+    <section id="ecran-chat" class="ecran" aria-labelledby="titre-ecran" hidden></section>
   </main>
 
   <footer class="pied">

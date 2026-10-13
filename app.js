@@ -6,7 +6,8 @@
    Étape 5 : progression (courbe SVG du meilleur poids).
    Étape 6 : édition du programme.
    Étape 7 : export / import JSON.
-   Étape 8 : couleurs par séance, animations, effets au scroll. */
+   Étape 8 : couleurs par séance, animations, effets au scroll.
+   Sam : coach (conseils calculés sur le téléphone + discussion IA sur demande). */
 'use strict';
 
 /* ---------- Programme de départ ---------- */
@@ -283,7 +284,7 @@ const observateur = 'IntersectionObserver' in window
 function animerApparitions(conteneur) {
   if (!observateur || mouvementReduit.matches) return;
   debutApparitions = performance.now();
-  const elements = conteneur.querySelectorAll('.carte, .liste-seances > li, .tuile, .titre-section, .actions');
+  const elements = conteneur.querySelectorAll('.carte, .carte-sam, .sam-entete, .liste-seances > li, .tuile, .titre-section, .actions');
   elements.forEach((el, i) => {
     el.classList.add('apparition');
     el.style.setProperty('--delai', `${Math.min(i, 7) * 55}ms`);
@@ -391,7 +392,7 @@ function enregistrer() {
 
 /* ---------- Écrans ---------- */
 
-const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice', 'sauvegarde'];
+const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice', 'sauvegarde', 'sam', 'chat'];
 
 /**
  * Affiche un écran : titre, bouton retour, couleur de fond (séance), animations,
@@ -540,6 +541,7 @@ function afficherAccueil() {
 
   remplirSemaine();
   remplirTuiles();
+  document.getElementById('info-sam').textContent = resumeSam(analyserAvecSam());
   document.getElementById('liste-seances').replaceChildren(...programme.map((seance, i) => {
     const item = document.createElement('li');
     item.append(creerBoutonSeance(seance, i + 1, !etat.donnees.enCours && seance === prochaine));
@@ -617,7 +619,9 @@ function creerCarteExercice(exEnCours, i, definition) {
   const carte = creer('article', 'carte exercice');
   carte.dataset.exercice = i;
   carte.setAttribute('aria-labelledby', titre.id);
-  carte.append(haut, creer('p', 'exercice__cible', texteCible(exercice)), series);
+  carte.append(haut, creer('p', 'exercice__cible', texteCible(exercice)));
+  if (definition) carte.append(creerConseilSeance(definition, i));
+  carte.append(series);
   majCarteExercice(carte, exEnCours);
   return carte;
 }
@@ -933,6 +937,7 @@ function retour() {
   if (etat.ecran === 'seance') retourAccueil();
   else if (etat.ecran === 'detail') afficherHistorique();
   else if (etat.ecran === 'exercice') afficherProgramme();
+  else if (etat.ecran === 'chat') afficherSam();
   else afficherAccueil();
 }
 
@@ -1721,6 +1726,827 @@ function afficherSauvegarde() {
   montrerEcran('sauvegarde', 'Sauvegarde');
 }
 
+/* ---------- Sam, le coach : analyses locales (hors ligne, rien ne sort du téléphone) ---------- */
+
+// Isolation : +1 kg ; polyarticulaire : +2 kg (règle de progression de CLAUDE.md)
+const ISOLATIONS = new Set([
+  'elevations-laterales', 'extension-triceps-poulie', 'face-pull', 'curl-barre', 'curl-marteau',
+  'leg-extension', 'leg-curl', 'mollets', 'ecarte-poulie', 'elevations-frontales', 'curl-incline',
+]);
+// Polyarticulaires lourds : repos plus long
+const LOURDS = new Set(['dev-couche', 'squat', 'rdl', 'presse', 'tirage-vertical', 'rowing', 'dev-halteres', 'tractions-supination']);
+const MOTS_ISOLATION = /curl|extension|élévation|elevation|écarté|ecarte|face pull|mollet|oiseau|pec deck|kickback/i;
+
+const NOMS_MUSCLES = {
+  pectoraux: 'Pectoraux', epaules: 'Épaules', triceps: 'Triceps', dos: 'Dos', biceps: 'Biceps',
+  quadriceps: 'Quadriceps', ischios: 'Ischios', fessiers: 'Fessiers', mollets: 'Mollets', abdos: 'Abdos',
+};
+
+// Muscle principal en premier (1 série comptée), secondaires ensuite (½ série)
+const MUSCLES_EXERCICES = {
+  'dev-couche': ['pectoraux', 'triceps', 'epaules'],
+  'dev-incline-halteres': ['pectoraux', 'epaules', 'triceps'],
+  'dev-militaire': ['epaules', 'triceps'],
+  'elevations-laterales': ['epaules'],
+  dips: ['triceps', 'pectoraux'],
+  'extension-triceps-poulie': ['triceps'],
+  'tirage-vertical': ['dos', 'biceps'],
+  rowing: ['dos', 'biceps'],
+  rdl: ['ischios', 'fessiers', 'dos'],
+  'face-pull': ['epaules', 'dos'],
+  'curl-barre': ['biceps'],
+  'curl-marteau': ['biceps'],
+  squat: ['quadriceps', 'fessiers'],
+  presse: ['quadriceps', 'fessiers'],
+  'fentes-bulgares': ['quadriceps', 'fessiers', 'ischios'],
+  'leg-extension': ['quadriceps'],
+  'leg-curl': ['ischios'],
+  mollets: ['mollets'],
+  gainage: ['abdos'],
+  'dev-halteres': ['pectoraux', 'triceps', 'epaules'],
+  'ecarte-poulie': ['pectoraux'],
+  'tirage-horizontal-uni': ['dos', 'biceps'],
+  'elevations-frontales': ['epaules'],
+  'tractions-supination': ['dos', 'biceps'],
+  'curl-incline': ['biceps'],
+};
+
+// Exercices ajoutés à la main : muscle deviné d'après le nom
+const MUSCLES_PAR_MOT = [
+  [/hip thrust|fessier|glute|abduct/i, ['fessiers']],
+  [/leg curl|ischio|soulevé|rdl/i, ['ischios', 'fessiers']],
+  [/mollet/i, ['mollets']],
+  [/gainage|abdo|crunch|planche|relevé|roue/i, ['abdos']],
+  [/curl/i, ['biceps']],
+  [/triceps|kickback|barre au front/i, ['triceps']],
+  [/squat|presse|fente|leg extension|hack/i, ['quadriceps', 'fessiers']],
+  [/tirage|rowing|traction|pull/i, ['dos', 'biceps']],
+  [/épaule|epaule|élévation|elevation|militaire|oiseau/i, ['epaules']],
+  [/pec|couché|couche|écarté|ecarte|dips|pompe/i, ['pectoraux', 'triceps']],
+];
+
+const AJOUTS_CONSEILLES = {
+  ischios: 'leg curl assis ou soulevé de terre roumain aux haltères, 3 × 10-12',
+  fessiers: 'hip thrust, 3 × 8-12 (en fin de séance Legs)',
+  mollets: 'une 2e séance de mollets dans la semaine (mollets assis, 3 × 12-15)',
+  abdos: 'relevés de jambes ou crunch à la poulie, 3 × 12-15',
+  triceps: 'barre au front ou extension à la poulie, 3 × 10-12',
+  biceps: 'curl à la poulie, 3 × 10-12',
+  epaules: 'élévations latérales à la poulie, 3 × 12-15',
+  pectoraux: 'écarté à la poulie, 3 × 10-12',
+  dos: 'rowing poitrine appuyée, 3 × 10-12',
+  quadriceps: 'hack squat ou leg extension, 3 × 10-12',
+};
+
+const ASTUCES_SAM = [
+  'Prise de masse : vise environ 1,6 à 2 g de protéines par kilo de poids de corps par jour, réparties sur 3 ou 4 repas.',
+  'Dors 7 à 9 h par nuit : c\'est pendant le sommeil que le muscle se reconstruit.',
+  'Avant un gros exercice, fais 2 séries d\'échauffement : une à 50 %, une à 70 % de ta charge.',
+  'Garde 1 ou 2 reps en réserve sur la plupart des séries : la technique reste propre et tu progresses plus longtemps.',
+  'Bois régulièrement pendant la séance : même une petite déshydratation fait baisser la force.',
+  'Pour prendre de la masse, mange un peu plus que tes besoins (environ +300 kcal par jour) et pèse-toi une fois par semaine.',
+  'Contrôle la descente en 2 à 3 secondes : plus de travail pour le muscle, moins de risque de blessure.',
+  'Une douleur vive ou dans une articulation n\'est pas normale : arrête l\'exercice et, si elle dure, consulte un professionnel de santé.',
+  'Toutes les 6 à 8 semaines, une semaine plus légère (−20 à −30 % de charge) aide à recharger les batteries.',
+  'Note honnêtement tes reps : ce sont elles qui me disent quand tu peux monter.',
+  'Un repas avec glucides et protéines dans les 2 h après la séance aide la récupération.',
+  'La régularité bat l\'intensité : 4 séances correctes chaque semaine valent mieux qu\'une séance parfaite de temps en temps.',
+];
+
+function estIsolation(exercice) {
+  if (ISOLATIONS.has(exercice.id)) return true;
+  return !LOURDS.has(exercice.id) && MOTS_ISOLATION.test(exercice.nom);
+}
+
+/** Temps de repos conseillé entre deux séries. */
+function reposConseille(exercice) {
+  if (exercice.unite === 's') return '45 s à 1 min';
+  if (LOURDS.has(exercice.id)) return '2 à 3 min';
+  if (estIsolation(exercice)) return '60 à 90 s';
+  return '90 s à 2 min';
+}
+
+function musclesDe(exercice) {
+  if (MUSCLES_EXERCICES[exercice.id]) return MUSCLES_EXERCICES[exercice.id];
+  const trouve = MUSCLES_PAR_MOT.find(([motif]) => motif.test(exercice.nom));
+  return trouve ? trouve[1] : [];
+}
+
+const arrondirCharge = (poids, pas) => Math.max(0, Math.round(poids / pas) * pas);
+
+/** Dernières séances (de la plus récente à la plus ancienne) où l'exercice a au moins une série faite. */
+function seancesExercice(exerciceId, combien) {
+  const resultat = [];
+  for (const entree of entreesHistorique()) {
+    const ex = entree.exercices.find((e) => e && e.exerciceId === exerciceId);
+    const faites = ex ? ex.series.filter((s) => s.fait) : [];
+    if (faites.length) resultat.push({ id: entree.id, series: faites });
+    if (resultat.length >= combien) break;
+  }
+  return resultat;
+}
+
+/** Poids le plus lourd d'une liste de séries, ou null. */
+function poidsMaxSeries(series) {
+  const poids = series.map((s) => s.poids).filter((p) => typeof p === 'number' && Number.isFinite(p));
+  return poids.length ? Math.max(...poids) : null;
+}
+
+/**
+ * Conseil de charge pour un exercice, d'après ses dernières séances.
+ * type : 'monter' | 'baisser' | 'stagne' | 'garder' | 'nouveau' ; poids : charge proposée si utile.
+ */
+function conseilCharge(exercice) {
+  const passees = seancesExercice(exercice.id, 3);
+  if (!passees.length) {
+    return { type: 'nouveau', court: 'Première fois', texte: `Première fois : trouve une charge qui te laisse ${texteReps(exercice)} reps propres.` };
+  }
+  const derniere = passees[0].series;
+  const reps = derniere.map((s) => (typeof s.reps === 'number' ? s.reps : null));
+  const poids = poidsMaxSeries(derniere);
+  const charge = poids === null ? (exercice.poidsDuCorps ? 'PDC × ' : '') : `${formaterNombre(poids)} kg × `;
+  const resume = `Dernière fois : ${charge}${reps.map((r) => r ?? '?').join(', ')}${exercice.unite === 's' ? ' s' : ''}`;
+  if (reps.includes(null)) {
+    return { type: 'garder', court: 'Note tes reps', texte: `${resume}. Note tes reps à chaque série pour que je puisse te dire quand monter.` };
+  }
+  const toutesFaites = derniere.length >= exercice.series;
+  const haut = exercice.repsMax ?? exercice.repsMin;
+
+  // Gainage et exercices au temps
+  if (exercice.unite === 's') {
+    if (haut !== null && toutesFaites && reps.every((r) => r >= haut)) {
+      return { type: 'monter', court: `Passe à ${haut + 15} s`, texte: `${resume} : objectif tenu partout. Passe à ${haut + 15} s, ou garde le temps avec une variante plus dure.` };
+    }
+    return { type: 'garder', court: `Vise ${haut ?? '+'} s`, texte: `${resume}. Garde ce temps et vise ${haut} s à chaque série.` };
+  }
+  // « max » (tractions) : au-delà de 12 reps partout, on ajoute du lest
+  if (exercice.repsMin === null) {
+    if (toutesFaites && Math.min(...reps) >= 12) {
+      const lest = (poids ?? 0) + 2;
+      return { type: 'monter', poids: lest, court: `Lest : ${formaterNombre(lest)} kg`, texte: `${resume} : 12 reps ou plus partout. Ajoute du lest : ${formaterNombre(lest)} kg.` };
+    }
+    return { type: 'garder', court: 'Une rep de plus', texte: `${resume}. Vise une rep de plus que la dernière fois sur chaque série.` };
+  }
+  if (poids === null) {
+    return { type: 'garder', court: 'Note le poids', texte: `${resume}. Note le poids utilisé pour que je suive ta progression.` };
+  }
+
+  // Règle de l'appli : haut de fourchette partout → +2 kg (+1 kg en isolation)
+  const iso = estIsolation(exercice);
+  if (toutesFaites && reps.every((r) => r >= haut)) {
+    const nouveau = poids + (iso ? 1 : 2);
+    return {
+      type: 'monter', poids: nouveau, court: `Passe à ${formaterNombre(nouveau)} kg`,
+      texte: `${resume} : haut de fourchette partout. Passe à ${formaterNombre(nouveau)} kg (+${iso ? 1 : 2} kg).`,
+    };
+  }
+  // Trop dur deux séances de suite (la moitié des séries sous le bas de fourchette) : on baisse un peu
+  const tropDur = (series) => series.filter((s) => typeof s.reps === 'number' && s.reps < exercice.repsMin).length >= Math.ceil(series.length / 2);
+  if (passees.length >= 2 && tropDur(derniere) && tropDur(passees[1].series) && (poidsMaxSeries(passees[1].series) ?? 0) >= poids) {
+    const nouveau = arrondirCharge(poids * 0.9, iso ? 1 : 2.5);
+    if (nouveau < poids) {
+      return {
+        type: 'baisser', poids: nouveau, court: `Baisse à ${formaterNombre(nouveau)} kg`,
+        texte: `${resume} : sous ${exercice.repsMin} reps deux séances de suite. Baisse à ${formaterNombre(nouveau)} kg pour travailler dans ta fourchette, puis remonte.`,
+      };
+    }
+  }
+  // Stagnation : 3 séances au même poids sans atteindre le haut de fourchette
+  if (passees.length >= 3 && passees.every((p) => poidsMaxSeries(p.series) === poids)) {
+    return {
+      type: 'stagne', court: 'Stagnation',
+      texte: `3 séances à ${formaterNombre(poids)} kg sans atteindre ${haut} reps partout. Change une chose : une série de plus, une descente plus lente (3 s), ou une semaine plus légère (−20 %).`,
+    };
+  }
+  return { type: 'garder', court: `Reste à ${formaterNombre(poids)} kg`, texte: `${resume}. Reste à ${formaterNombre(poids)} kg et vise ${haut} reps à chaque série.` };
+}
+
+/** Records battus ces 14 derniers jours. */
+function recordsRecents() {
+  const depuis = Date.now() - 14 * 86400000;
+  const records = [];
+  for (const seance of etat.donnees.programme) {
+    for (const exercice of seance.exercices.filter(Boolean)) {
+      const points = pointsProgression(exercice.id);
+      if (points.length < 2) continue;
+      const dernier = points[points.length - 1];
+      const avant = Math.max(...points.slice(0, -1).map((p) => p.poids));
+      if (dernier.poids > avant && dernier.temps >= depuis) records.push({ exercice, poids: dernier.poids, gain: dernier.poids - avant, id: dernier.id });
+    }
+  }
+  return records;
+}
+
+/** Séries prévues par semaine pour chaque muscle (principal = 1, secondaire = ½). */
+function volumeParMuscle() {
+  const volume = Object.fromEntries(Object.keys(NOMS_MUSCLES).map((m) => [m, 0]));
+  for (const seance of etat.donnees.programme) {
+    for (const exercice of seance.exercices.filter(Boolean)) {
+      musclesDe(exercice).forEach((muscle, i) => {
+        volume[muscle] += (i === 0 ? 1 : 0.5) * (Number(exercice.series) || 0);
+      });
+    }
+  }
+  return volume;
+}
+
+/** Exercices sautés (aucune série faite) au moins 2 fois sur les 3 dernières séances concernées. */
+function exercicesSautes() {
+  const entrees = entreesHistorique();
+  const sautes = [];
+  for (const seance of etat.donnees.programme) {
+    const dernieres = entrees.filter((e) => e.seanceId === seance.id).slice(0, 3);
+    if (dernieres.length < 2) continue;
+    for (const exercice of seance.exercices.filter(Boolean)) {
+      const fois = dernieres.filter((e) => {
+        const ex = e.exercices.find((x) => x && x.exerciceId === exercice.id);
+        return !ex || !ex.series.some((s) => s.fait);
+      }).length;
+      if (fois >= 2) sautes.push({ exercice, seance, fois, sur: dernieres.length });
+    }
+  }
+  return sautes;
+}
+
+/** Séance à faire ensuite : celle en cours, sinon la première pas encore faite cette semaine. */
+function prochaineSeance() {
+  const { programme, enCours } = etat.donnees;
+  if (enCours) return trouverSeance(enCours.seanceId) || null;
+  const debut = debutSemaine();
+  const faites = new Set(entreesHistorique().filter((e) => tempsDepuisId(e.id) >= debut).map((e) => e.seanceId));
+  return programme.find((s) => !faites.has(s.id)) || programme[0] || null;
+}
+
+/** Régularité : séances cette semaine, jours depuis la dernière, semaines d'affilée à 3 séances ou plus. */
+function regularite() {
+  const entrees = entreesHistorique();
+  const debut = debutSemaine();
+  const semaine = entrees.filter((e) => tempsDepuisId(e.id) >= debut).length;
+  const derniere = entrees.length ? tempsDepuisId(entrees[0].id) : null;
+  const jours = derniere === null ? null : Math.floor((Date.now() - derniere) / 86400000);
+  // Semaines complètes d'affilée (en partant de la semaine dernière) avec au moins 3 séances
+  let serie = 0;
+  for (let fin = debut; ; fin -= 7 * 86400000) {
+    const nb = entrees.filter((e) => {
+      const t = tempsDepuisId(e.id);
+      return t >= fin - 7 * 86400000 && t < fin;
+    }).length;
+    if (nb < 3) break;
+    serie++;
+  }
+  return { semaine, objectif: Math.max(1, etat.donnees.programme.length), jours, serie };
+}
+
+/** Toutes les analyses de Sam en une fois. */
+function analyserAvecSam() {
+  const exercices = etat.donnees.programme.flatMap((s) => s.exercices.filter(Boolean).map((exercice) => ({ exercice, seance: s })));
+  const charges = exercices
+    .map(({ exercice, seance }) => ({ exercice, seance, conseil: conseilCharge(exercice) }))
+    .filter(({ conseil }) => ['monter', 'baisser', 'stagne'].includes(conseil.type));
+  const volume = volumeParMuscle();
+  const manques = Object.entries(volume).filter(([, v]) => v < 10).sort((a, b) => a[1] - b[1]);
+  const jourDeLAnnee = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  return {
+    aDesSeances: entreesHistorique().length > 0,
+    charges,
+    records: recordsRecents(),
+    volume,
+    manques,
+    sautes: exercicesSautes(),
+    prochaine: prochaineSeance(),
+    regularite: regularite(),
+    astuce: ASTUCES_SAM[jourDeLAnnee % ASTUCES_SAM.length],
+  };
+}
+
+/** Phrase d'accroche de Sam (accueil et écran Sam). */
+function motDeSam(analyse) {
+  const heure = new Date().getHours();
+  const salut = heure < 12 ? 'Bonjour' : heure < 18 ? 'Salut' : 'Bonsoir';
+  if (!analyse.aDesSeances) return `${salut} ! Je suis Sam, ton coach. Fais ta première séance et je te dirai quand monter en charge.`;
+  const morceaux = [`${salut} !`];
+  const monter = analyse.charges.filter((c) => c.conseil.type === 'monter').length;
+  if (analyse.records.length) morceaux.push(`${analyse.records.length} record${analyse.records.length > 1 ? 's' : ''} battu${analyse.records.length > 1 ? 's' : ''} récemment, bravo.`);
+  morceaux.push(monter ? `${monter} exercice${monter > 1 ? 's' : ''} prêt${monter > 1 ? 's' : ''} à monter en charge.` : 'Pas de hausse de charge pour l\'instant : continue comme ça.');
+  if (analyse.prochaine) morceaux.push(`Prochaine séance : ${analyse.prochaine.nom}.`);
+  return morceaux.join(' ');
+}
+
+/** Résumé court pour la carte Sam de l'accueil. */
+function resumeSam(analyse) {
+  if (!analyse.aDesSeances) return 'Tes conseils après ta première séance';
+  const monter = analyse.charges.filter((c) => c.conseil.type === 'monter').length;
+  const morceaux = [];
+  if (analyse.records.length) morceaux.push(`${analyse.records.length} record${analyse.records.length > 1 ? 's' : ''}`);
+  morceaux.push(monter ? `${monter} charge${monter > 1 ? 's' : ''} à monter` : 'charges stables');
+  if (analyse.prochaine) morceaux.push(`prochaine : ${analyse.prochaine.nom}`);
+  return morceaux.join(' · ');
+}
+
+/* ---------- Sam : écran des conseils ---------- */
+
+const ETIQUETTES_CONSEIL = { monter: 'Monter', baisser: 'Baisser', stagne: 'Stagnation', garder: 'Garder', nouveau: 'Nouveau', saute: 'Sauté', ajout: 'À ajouter' };
+
+/** Carte de l'écran Sam : titre + contenu. */
+function carteSam(titre, ...contenu) {
+  const carte = creer('article', 'carte carte-conseils');
+  carte.append(creer('h2', 'exercice__nom', titre), ...contenu);
+  return carte;
+}
+
+/** Ligne de conseil : pastille d'état + nom + explication. */
+function ligneConseil(type, nom, texte) {
+  const ligne = creer('li', 'conseil');
+  const pastille = creer('span', `conseil__type conseil__type--${type}`, ETIQUETTES_CONSEIL[type] || '');
+  const textes = creer('span', 'conseil__textes');
+  textes.append(creer('span', 'conseil__nom', nom), creer('span', 'conseil__texte', texte));
+  ligne.append(pastille, textes);
+  return ligne;
+}
+
+/** Écran Sam : conseils calculés sur le téléphone, puis accès au chat. */
+function afficherSam() {
+  const analyse = analyserAvecSam();
+  const blocs = [];
+
+  const entete = creer('div', 'sam-entete');
+  const avatar = creer('span', 'pastille-seance avatar-sam', 'S');
+  avatar.setAttribute('aria-hidden', 'true');
+  entete.append(avatar, creer('p', 'sam-entete__mot', motDeSam(analyse)));
+  blocs.push(entete);
+
+  // Prochaine séance : objectif et repos pour chaque exercice
+  if (analyse.prochaine) {
+    const liste = creer('ul', 'conseils');
+    for (const exercice of analyse.prochaine.exercices.filter(Boolean)) {
+      const conseil = conseilCharge(exercice);
+      liste.append(ligneConseil(conseil.type, exercice.nom, `${conseil.texte} Repos : ${reposConseille(exercice)}.`));
+    }
+    const carte = carteSam(`Prochaine séance · ${analyse.prochaine.nom}`, liste);
+    carte.classList.add(teinte(analyse.prochaine.id));
+    blocs.push(carte);
+  }
+
+  // Charges à changer sur tout le programme
+  const autres = analyse.charges.filter(({ seance }) => !analyse.prochaine || seance.id !== analyse.prochaine.id);
+  if (autres.length) {
+    const liste = creer('ul', 'conseils');
+    for (const { exercice, seance, conseil } of autres) liste.append(ligneConseil(conseil.type, `${exercice.nom} · ${seance.nom}`, conseil.texte));
+    blocs.push(carteSam('Charges sur les autres séances', liste));
+  }
+
+  if (analyse.records.length) {
+    const liste = creer('ul', 'conseils');
+    for (const r of analyse.records) {
+      liste.append(ligneConseil('monter', r.exercice.nom, `Nouveau record : ${formaterNombre(r.poids)} kg le ${formaterDate(r.id)} (+${formaterNombre(Math.round(r.gain * 100) / 100)} kg). Bravo !`));
+    }
+    blocs.push(carteSam('Records', liste));
+  }
+
+  // Équilibre du programme : séries par semaine et par muscle (repère : 10 à 20)
+  const barres = creer('ul', 'muscles');
+  for (const [muscle, series] of Object.entries(analyse.volume).sort((a, b) => b[1] - a[1])) {
+    const ligne = creer('li', `muscle${series < 10 ? ' muscle--faible' : ''}`);
+    const jauge = creer('span', 'muscle__jauge');
+    const remplissage = document.createElement('span');
+    remplissage.style.width = `${Math.min(100, (series / 22) * 100)}%`;
+    jauge.append(remplissage);
+    const valeur = `${formaterNombre(series)} série${series > 1 ? 's' : ''}${series < 10 ? ' · faible' : series > 22 ? ' · beaucoup' : ''}`;
+    ligne.append(creer('span', 'muscle__nom', NOMS_MUSCLES[muscle]), jauge, creer('span', 'muscle__valeur', valeur));
+    barres.append(ligne);
+  }
+  const equilibre = carteSam('Équilibre du programme',
+    creer('p', 'exercice__cible', 'Séries par semaine et par muscle. Repère pour la prise de masse : 10 à 20.'), barres);
+  if (analyse.manques.length) {
+    const ajouts = creer('ul', 'conseils');
+    for (const [muscle] of analyse.manques) ajouts.append(ligneConseil('ajout', `${NOMS_MUSCLES[muscle]} : à renforcer`, `Idée : ${AJOUTS_CONSEILLES[muscle]}. Tu peux l'ajouter dans Programme.`));
+    equilibre.append(ajouts);
+  }
+  blocs.push(equilibre);
+
+  if (analyse.sautes.length) {
+    const liste = creer('ul', 'conseils');
+    // Les plus souvent sautés d'abord, 4 au plus pour rester lisible
+    const sautes = [...analyse.sautes].sort((a, b) => b.fois / b.sur - a.fois / a.sur).slice(0, 4);
+    for (const { exercice, seance, fois, sur } of sautes) {
+      liste.append(ligneConseil('saute', `${exercice.nom} · ${seance.nom}`, `Sauté ${fois} fois sur tes ${sur} dernières séances. S'il ne te convient pas, remplace-le ou retire-le dans Programme.`));
+    }
+    blocs.push(carteSam('Exercices souvent sautés', liste));
+  }
+
+  const { semaine, objectif, jours, serie } = analyse.regularite;
+  const phrases = [`Cette semaine : ${semaine}/${objectif} séances.`];
+  if (jours !== null && jours >= 4) phrases.push(`Ta dernière séance date de ${jours} jours : on y retourne ?`);
+  if (serie >= 2) phrases.push(`${serie} semaines d'affilée à 3 séances ou plus. Belle régularité !`);
+  blocs.push(carteSam('Régularité', creer('p', 'carte__texte', phrases.join(' '))));
+  blocs.push(carteSam('Astuce du jour', creer('p', 'carte__texte', analyse.astuce)));
+
+  const discuter = creer('button', 'bouton bouton--principal', 'Discuter avec Sam');
+  discuter.type = 'button';
+  discuter.dataset.action = 'chat';
+  const actions = creer('div', 'actions');
+  actions.append(discuter, creer('p', 'exercice__cible', 'Les conseils ci-dessus sont calculés sur ton téléphone, même sans réseau. La discussion utilise l\'IA en ligne.'));
+  blocs.push(actions);
+
+  document.getElementById('ecran-sam').replaceChildren(...blocs);
+  montrerEcran('sam', 'Sam, ton coach');
+}
+
+/** Ligne « Repos » et conseil de Sam dans une carte d'exercice de la séance. */
+function creerConseilSeance(exercice, i) {
+  const bloc = creer('div', 'exercice__sam');
+  bloc.append(creer('p', 'exercice__repos', `Repos : ${reposConseille(exercice)}`));
+  const conseil = conseilCharge(exercice);
+  if (['monter', 'baisser', 'stagne'].includes(conseil.type)) {
+    const ligne = creer('div', 'conseil-seance');
+    const avatar = creer('span', 'avatar-sam avatar-sam--mini', 'S');
+    avatar.setAttribute('aria-hidden', 'true');
+    ligne.append(avatar, creer('span', 'conseil-seance__texte', `Sam : ${conseil.court}`));
+    if (typeof conseil.poids === 'number') {
+      const appliquer = creer('button', 'bouton-mini', 'Appliquer');
+      appliquer.type = 'button';
+      appliquer.dataset.appliquer = String(conseil.poids);
+      appliquer.dataset.exercice = String(i);
+      appliquer.setAttribute('aria-label', `Appliquer ${formaterNombre(conseil.poids)} kg aux séries pas encore cochées de ${exercice.nom}`);
+      ligne.append(appliquer);
+    }
+    bloc.append(ligne);
+  }
+  return bloc;
+}
+
+/** Met le poids proposé par Sam sur les séries pas encore cochées. */
+function appliquerConseil(bouton) {
+  const i = Number(bouton.dataset.exercice);
+  const poids = Number(bouton.dataset.appliquer);
+  const series = etat.donnees.enCours.exercices[i].series;
+  series.forEach((serie, j) => {
+    if (serie.fait) return;
+    serie.poids = poids;
+    const champ = document.querySelector(`.serie[data-exercice="${i}"][data-serie="${j}"] [data-champ="poids"]`);
+    if (champ) {
+      champ.value = formaterNombre(poids);
+      champ.removeAttribute('aria-invalid');
+    }
+  });
+  etat.donnees.enCours.derniereAction = Date.now();
+  enregistrer();
+  bouton.textContent = 'Appliqué';
+  bouton.disabled = true;
+  vibrer();
+}
+
+/* ---------- Sam : discussion avec l'IA (Claude, en ligne, sur demande) ---------- */
+
+const CLE_SAM_API = 'suivi_sam_cle'; // clé API : jamais dans suivi_donnees, donc jamais exportée
+const CLE_SAM_DISCUSSION = 'suivi_sam_discussion';
+const MODELE_SAM = 'claude-haiku-5-5';
+const DUREE_DISCUSSION_MS = 12 * 3600000; // au-delà, les données envoyées à Sam sont trop vieilles
+const MESSAGES_MAX = 40;
+
+const QUESTIONS_SAM = [
+  'Je dois monter en charge sur quels exercices ?',
+  'Mon programme est-il équilibré ?',
+  'Combien de temps de repos entre mes séries ?',
+  'Que manger pour ma prise de masse ?',
+];
+
+function lireCleSam() {
+  try {
+    return localStorage.getItem(CLE_SAM_API) || '';
+  } catch {
+    return '';
+  }
+}
+
+function lireDiscussion() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CLE_SAM_DISCUSSION));
+    return d && typeof d.systeme === 'string' && Array.isArray(d.messages) && Number.isFinite(d.creeLe) ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+function sauverDiscussion(discussion) {
+  try {
+    if (discussion) localStorage.setItem(CLE_SAM_DISCUSSION, JSON.stringify(discussion));
+    else localStorage.removeItem(CLE_SAM_DISCUSSION);
+  } catch {
+    // Stockage plein : la discussion reste en mémoire le temps de l'écran
+  }
+}
+
+/** Une séance de l'historique en une ligne pour Sam. */
+function ligneHistoriqueSam(entree) {
+  const exercices = entree.exercices.map((ex) => {
+    const exercice = trouverExerciceDansProgramme(ex.exerciceId) || { nom: ex.exerciceId, unite: 'reps', poidsDuCorps: false };
+    const series = ex.series.map((s) => `${texteSerie(exercice, s)}${s.fait ? '' : ' (non faite)'}`).join(' ; ');
+    return `  - ${exercice.nom} : ${series}`;
+  });
+  const duree = texteDuree(entree);
+  return [`${formaterDate(entree.id)} ${heureDepuisId(entree.id)} · ${nomSeance(entree.seanceId)}${duree ? ` · ${duree}` : ''}`, ...exercices].join('\n');
+}
+
+/**
+ * Consignes et données envoyées à Sam. Figées pour toute une discussion :
+ * modifier un message déjà envoyé invaliderait la réflexion du modèle (historique « en ajout seul »).
+ */
+function construireSystemeSam() {
+  const aujourdHui = new Date();
+  const jour = aujourdHui.toLocaleDateString('fr-FR', { weekday: 'long' });
+  const programme = etat.donnees.programme.map((seance, s) => {
+    const lignes = seance.exercices.filter(Boolean).map((ex) => {
+      const depart = typeof ex.poidsDefaut === 'number' ? `, poids de départ ${formaterNombre(ex.poidsDefaut)} kg` : '';
+      const type = ex.unite === 's' ? 'gainage' : estIsolation(ex) ? 'isolation' : 'polyarticulaire';
+      return `  - ${ex.nom} : ${texteCible(ex)}${depart}${ex.poidsDuCorps ? ', au poids du corps (poids = lest)' : ''} · ${type} · repos conseillé ${reposConseille(ex)}`;
+    });
+    return [`Séance ${s + 1} · ${seance.nom}`, ...lignes].join('\n');
+  }).join('\n');
+
+  const limite = Date.now() - 12 * 7 * 86400000;
+  const seances = entreesHistorique().filter((e) => tempsDepuisId(e.id) >= limite).slice(0, 40);
+  const historique = seances.length ? seances.map(ligneHistoriqueSam).join('\n') : 'Aucune séance enregistrée pour l\'instant.';
+
+  const analyse = analyserAvecSam();
+  const conseils = [
+    ...analyse.charges.map(({ exercice, conseil }) => `- ${exercice.nom} : ${conseil.texte}`),
+    ...analyse.records.map((r) => `- Record : ${r.exercice.nom} ${formaterNombre(r.poids)} kg le ${formaterDate(r.id)}`),
+    ...analyse.manques.map(([m, v]) => `- ${NOMS_MUSCLES[m]} : ${formaterNombre(v)} séries par semaine (faible)`),
+    ...analyse.sautes.map(({ exercice, fois, sur }) => `- ${exercice.nom} sauté ${fois} fois sur ${sur}`),
+    `- Cette semaine : ${analyse.regularite.semaine}/${analyse.regularite.objectif} séances`,
+  ].join('\n');
+
+  return `Tu es Sam, le coach de musculation de Guillaume dans son appli « Suivi de séances ». Guillaume a 19 ans, il est en prise de masse et s'entraîne 4 fois par semaine en salle.
+
+Ton rôle : l'aider à progresser en sécurité. Tu le conseilles sur les charges (monter, garder, baisser), les temps de repos, le choix des exercices (ajouter, remplacer, retirer), l'équilibre du programme, la récupération, le sommeil et l'alimentation pour la prise de masse.
+
+Comment tu réponds :
+- En français, en le tutoyant, comme un coach bienveillant et direct.
+- Court et concret : 3 à 8 phrases ou une courte liste, sauf s'il demande plus de détails.
+- Appuie-toi sur ses données ci-dessous et cite les chiffres (charges, reps, dates au format JJ/MM/AAAA). Si une information manque, dis-le simplement.
+- Règle de progression de l'appli : quand toutes les séries d'un exercice atteignent le haut de la fourchette de reps, proposer +2 kg sur un polyarticulaire, +1 kg sur une isolation. C'est une suggestion, jamais une obligation.
+- Texte simple, sans mise en forme Markdown (pas d'astérisques, pas de #). Pour une liste, commence chaque ligne par « - ».
+- Santé : tu n'es pas médecin. En cas de douleur, de blessure, de malaise ou de question médicale, conseille d'arrêter l'exercice concerné et de consulter un professionnel de santé. Jamais de produits dopants, de régimes extrêmes ni de charges dangereuses.
+- Si la question n'a rien à voir avec l'entraînement, la récupération ou la nutrition sportive, ramène gentiment la discussion vers ses séances.
+
+<donnees date="${jour} ${formaterDate(idSeance(Date.now()))}">
+<programme>
+${programme}
+</programme>
+<seances_recentes>
+${historique}
+</seances_recentes>
+<analyses_automatiques>
+${conseils}
+</analyses_automatiques>
+</donnees>`;
+}
+
+/** Texte lisible d'une réponse : blocs « text » uniquement, mise en forme Markdown retirée. */
+function texteReponse(contenu) {
+  const blocs = Array.isArray(contenu) ? contenu : [{ type: 'text', text: String(contenu) }];
+  return blocs.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n')
+    .replace(/\*\*(.+?)\*\*/g, '$1').replace(/^#{1,6}\s*/gm, '').trim();
+}
+
+/** Message d'erreur compréhensible selon la réponse de l'API. */
+function messageErreurSam(statut, corps) {
+  const detail = corps && corps.error && typeof corps.error.message === 'string' ? corps.error.message : '';
+  if (statut === 401) return 'Clé API refusée : vérifie-la (bouton « Changer de clé » en bas).';
+  if (statut === 400 && /credit|balance/i.test(detail)) return 'Plus de crédit sur ton compte Anthropic : recharge-le sur console.anthropic.com.';
+  if (statut === 403) return 'Accès refusé par l\'API : vérifie les droits de ta clé dans la console Anthropic.';
+  if (statut === 429) return 'Trop de questions d\'un coup : réessaie dans une minute.';
+  if (statut >= 500) return 'Le service de Sam est surchargé : réessaie dans un moment.';
+  return `Sam n'a pas pu répondre${detail ? ` : ${detail}` : '.'}`;
+}
+
+/** Appelle l'API Claude depuis le téléphone (requête HTTP directe : l'appli n'a ni dépendance ni build). */
+async function appelerSam(discussion, cle) {
+  let reponse;
+  try {
+    reponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': cle,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true', // appel depuis le navigateur, avec la clé de Guillaume
+      },
+      body: JSON.stringify({
+        model: MODELE_SAM,
+        max_tokens: 16000,
+        output_config: { effort: 'medium' },
+        cache_control: { type: 'ephemeral' }, // consignes + données réutilisées à chaque message
+        system: discussion.systeme,
+        messages: discussion.messages,
+      }),
+    });
+  } catch {
+    throw new Error('Pas de réseau : Sam a besoin d\'internet pour discuter. Ses conseils automatiques restent disponibles.');
+  }
+  const corps = await reponse.json().catch(() => null);
+  if (!reponse.ok) throw new Error(messageErreurSam(reponse.status, corps));
+  if (!corps || !Array.isArray(corps.content)) throw new Error('Réponse illisible : réessaie.');
+  if (corps.stop_reason === 'refusal') throw new Error('Sam ne peut pas répondre à cette question. Reformule-la autrement.');
+  if (!texteReponse(corps.content)) throw new Error('Sam n\'a rien répondu : réessaie.');
+  return corps.content; // gardé tel quel (blocs de réflexion compris) pour la suite de la discussion
+}
+
+/** Bulle de discussion. */
+function creerBulle(role, texte) {
+  const bulle = creer('div', `bulle bulle--${role}`);
+  if (role === 'sam') {
+    const avatar = creer('span', 'avatar-sam avatar-sam--mini', 'S');
+    avatar.setAttribute('aria-hidden', 'true');
+    bulle.append(avatar);
+  }
+  const contenu = creer('p', 'bulle__texte', texte);
+  if (role === 'sam') contenu.prepend(creer('span', 'visuellement-cache', 'Sam : '));
+  if (role === 'moi') contenu.prepend(creer('span', 'visuellement-cache', 'Toi : '));
+  bulle.append(contenu);
+  return bulle;
+}
+
+function creerBulleAttente() {
+  const bulle = creerBulle('sam', '');
+  bulle.classList.add('bulle--attente');
+  const points = bulle.querySelector('.bulle__texte');
+  points.replaceChildren(creer('span', 'visuellement-cache', 'Sam réfléchit…'), creer('span', 'points', ''));
+  return bulle;
+}
+
+/** Carte de configuration : coller sa clé API. */
+function creerCarteCleSam() {
+  const carte = creer('article', 'carte');
+  const etapes = creer('ol', 'etapes');
+  const lien = creer('a', '', 'console.anthropic.com');
+  lien.href = 'https://console.anthropic.com/';
+  lien.target = '_blank';
+  lien.rel = 'noopener';
+  const etape1 = creer('li', '', 'Crée un compte sur ');
+  etape1.append(lien, document.createTextNode(' et ajoute un peu de crédit (5 € suffisent pour environ 2 000 questions avec Claude Haiku 5.5).'));
+  etapes.append(
+    etape1,
+    creer('li', '', 'Dans « API Keys », crée une clé et copie-la.'),
+    creer('li', '', 'Colle-la ci-dessous.'),
+  );
+
+  const formulaire = creer('form', 'formulaire');
+  formulaire.id = 'formulaire-cle';
+  formulaire.noValidate = true;
+  const champ = creer('input', 'champ champ--formulaire');
+  champ.id = 'cle-sam';
+  champ.type = 'password';
+  champ.autocomplete = 'off';
+  champ.spellcheck = false;
+  champ.placeholder = 'sk-ant-…';
+  const label = creer('label', 'etiquette', 'Clé API');
+  label.htmlFor = champ.id;
+  const bloc = creer('div', 'formulaire__champ');
+  bloc.append(label, champ);
+  const erreur = creer('p', 'message');
+  erreur.id = 'erreur-cle';
+  erreur.setAttribute('role', 'alert');
+  erreur.hidden = true;
+  const valider = creer('button', 'bouton bouton--principal', 'Enregistrer la clé');
+  valider.type = 'submit';
+  formulaire.append(erreur, bloc, valider);
+
+  carte.append(
+    creer('h2', 'exercice__nom', 'Brancher Sam sur l\'IA'),
+    creer('p', 'carte__texte', 'Pour discuter librement, Sam utilise Claude (Anthropic). Il te faut ta propre clé API :'),
+    etapes,
+    creer('p', 'exercice__cible', 'Conseil : fixe une limite de dépense mensuelle dans la console (« Limits »).'),
+    creer('p', 'exercice__cible', 'Ta clé reste sur ce téléphone, jamais dans tes sauvegardes. Quand tu poses une question, ton prénom, ton programme et tes séances des 12 dernières semaines sont envoyés à Anthropic pour que Sam réponde. Rien n\'est envoyé tant que tu ne poses pas de question.'),
+    formulaire,
+  );
+  return carte;
+}
+
+/** Écran de discussion avec Sam. */
+function afficherChat() {
+  const ecran = document.getElementById('ecran-chat');
+  if (!lireCleSam()) {
+    ecran.replaceChildren(creerCarteCleSam());
+    montrerEcran('chat', 'Discuter avec Sam', 'Retour à Sam');
+    return;
+  }
+  let discussion = lireDiscussion();
+  if (discussion && Date.now() - discussion.creeLe > DUREE_DISCUSSION_MS) discussion = null; // données trop anciennes
+  etat.discussion = discussion;
+
+  const info = creer('p', 'exercice__cible', discussion
+    ? `Sam (IA · Claude Haiku 5.5) · données du ${formaterDate(idSeance(discussion.creeLe))} à ${formaterHeure(discussion.creeLe)}`
+    : 'Sam (IA · Claude Haiku 5.5) · pose ta question, il voit ton programme et tes séances.');
+
+  const fil = creer('div', 'fil');
+  fil.id = 'fil-sam';
+  fil.setAttribute('aria-live', 'polite');
+  for (const message of discussion ? discussion.messages : []) {
+    fil.append(creerBulle(message.role === 'user' ? 'moi' : 'sam', message.role === 'user' ? String(message.content) : texteReponse(message.content)));
+  }
+
+  const suggestions = creer('div', 'suggestions');
+  suggestions.id = 'suggestions-sam';
+  suggestions.hidden = Boolean(discussion && discussion.messages.length);
+  for (const question of QUESTIONS_SAM) {
+    const puce = creer('button', 'suggestion', question);
+    puce.type = 'button';
+    puce.dataset.question = question;
+    suggestions.append(puce);
+  }
+
+  const saisie = creer('form', 'saisie');
+  saisie.id = 'saisie-sam';
+  const zone = creer('textarea', 'saisie__zone');
+  zone.id = 'question-sam';
+  zone.rows = 1;
+  zone.maxLength = 1000;
+  zone.placeholder = 'Écris à Sam…';
+  zone.setAttribute('aria-label', 'Ta question pour Sam');
+  const envoyer = creer('button', 'saisie__envoyer');
+  envoyer.type = 'submit';
+  envoyer.setAttribute('aria-label', 'Envoyer');
+  envoyer.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  saisie.append(zone, envoyer);
+
+  const nouvelle = creer('button', 'bouton bouton--secondaire', 'Nouvelle discussion');
+  nouvelle.type = 'button';
+  nouvelle.dataset.action = 'nouvelle';
+  const changer = creer('button', 'bouton-lien', 'Changer de clé');
+  changer.type = 'button';
+  changer.dataset.action = 'oublier-cle';
+  const actions = creer('div', 'actions');
+  actions.append(nouvelle, changer);
+
+  ecran.replaceChildren(info, fil, suggestions, saisie, actions);
+  montrerEcran('chat', 'Discuter avec Sam', 'Retour à Sam');
+  if (discussion && discussion.messages.length) fil.lastElementChild.scrollIntoView({ block: 'end' });
+}
+
+/** Envoie une question à Sam et affiche sa réponse. */
+async function envoyerQuestion(texte) {
+  const question = texte.trim().slice(0, 1000);
+  const zone = document.getElementById('question-sam');
+  const fil = document.getElementById('fil-sam');
+  if (!question || !zone || zone.disabled) return;
+
+  if (!etat.discussion) etat.discussion = { creeLe: Date.now(), systeme: construireSystemeSam(), messages: [] };
+  const discussion = etat.discussion;
+  if (discussion.messages.length >= MESSAGES_MAX) {
+    fil.append(creerBulle('erreur', 'Discussion déjà longue : lance une « Nouvelle discussion » pour continuer.'));
+    return;
+  }
+
+  document.getElementById('suggestions-sam').hidden = true;
+  discussion.messages.push({ role: 'user', content: question });
+  zone.value = '';
+  zone.style.height = '';
+  zone.disabled = true;
+  fil.append(creerBulle('moi', question));
+  const attente = creerBulleAttente();
+  fil.append(attente);
+  attente.scrollIntoView({ block: 'end', behavior: mouvementReduit.matches ? 'auto' : 'smooth' });
+
+  try {
+    const contenu = await appelerSam(discussion, lireCleSam());
+    discussion.messages.push({ role: 'assistant', content: contenu });
+    sauverDiscussion(discussion);
+    attente.replaceWith(creerBulle('sam', texteReponse(contenu)));
+  } catch (erreur) {
+    // Question sans réponse : on la retire (rien d'autre n'a été envoyé après) et on la remet dans la zone
+    discussion.messages.pop();
+    if (!discussion.messages.length) etat.discussion = null;
+    attente.replaceWith(creerBulle('erreur', erreur.message));
+    zone.value = question;
+  } finally {
+    zone.disabled = false;
+    if (document.getElementById('fil-sam') === fil) fil.lastElementChild.scrollIntoView({ block: 'end' });
+  }
+}
+
+/** Enregistre la clé API collée par Guillaume. */
+function enregistrerCleSam(form) {
+  const cle = form.elements['cle-sam'].value.trim();
+  const erreur = document.getElementById('erreur-cle');
+  if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(cle)) {
+    erreur.textContent = 'Cette clé ne ressemble pas à une clé Anthropic (elle commence par « sk-ant- »).';
+    erreur.hidden = false;
+    form.elements['cle-sam'].focus();
+    return;
+  }
+  try {
+    localStorage.setItem(CLE_SAM_API, cle);
+  } catch {
+    erreur.textContent = 'Stockage plein : impossible d\'enregistrer la clé.';
+    erreur.hidden = false;
+    return;
+  }
+  afficherChat();
+  afficherMessage('Clé enregistrée : Sam est prêt à discuter.');
+}
+
 /* ---------- Service worker ---------- */
 
 const statutHorsLigne = document.getElementById('statut-hors-ligne');
@@ -1826,6 +2652,55 @@ ecranSauvegarde.addEventListener('change', (evenement) => {
   evenement.target.value = ''; // permet de rechoisir le même fichier
 });
 
+document.getElementById('bouton-sam').addEventListener('click', () => {
+  afficherMessage('');
+  afficherSam();
+});
+
+document.getElementById('ecran-sam').addEventListener('click', (evenement) => {
+  if (evenement.target.closest('[data-action="chat"]')) {
+    afficherMessage('');
+    afficherChat();
+  }
+});
+
+const ecranChat = document.getElementById('ecran-chat');
+ecranChat.addEventListener('submit', (evenement) => {
+  evenement.preventDefault();
+  if (evenement.target.id === 'formulaire-cle') enregistrerCleSam(evenement.target);
+  else envoyerQuestion(document.getElementById('question-sam').value);
+});
+ecranChat.addEventListener('click', (evenement) => {
+  const suggestion = evenement.target.closest('[data-question]');
+  const action = evenement.target.closest('[data-action]');
+  if (suggestion) envoyerQuestion(suggestion.dataset.question);
+  else if (action && action.dataset.action === 'nouvelle') {
+    etat.discussion = null;
+    sauverDiscussion(null);
+    afficherChat();
+  } else if (action && action.dataset.action === 'oublier-cle') {
+    if (!confirm('Retirer ta clé API de ce téléphone ? Tu pourras en coller une autre.')) return;
+    try {
+      localStorage.removeItem(CLE_SAM_API);
+    } catch {
+      // rien à faire
+    }
+    afficherChat();
+  }
+});
+// Zone de saisie : grandit avec le texte ; Entrée envoie, Maj + Entrée va à la ligne
+ecranChat.addEventListener('input', (evenement) => {
+  if (evenement.target.id !== 'question-sam') return;
+  evenement.target.style.height = '';
+  evenement.target.style.height = `${Math.min(evenement.target.scrollHeight, 140)}px`;
+});
+ecranChat.addEventListener('keydown', (evenement) => {
+  if (evenement.target.id === 'question-sam' && evenement.key === 'Enter' && !evenement.shiftKey && !evenement.isComposing) {
+    evenement.preventDefault();
+    envoyerQuestion(evenement.target.value);
+  }
+});
+
 document.getElementById('ecran-historique').addEventListener('click', (evenement) => {
   const bouton = evenement.target.closest('[data-entree]');
   if (bouton) afficherDetail(bouton.dataset.entree);
@@ -1844,6 +2719,11 @@ ecranSeance.addEventListener('change', (evenement) => {
   if (evenement.target.matches('[data-champ="fait"]')) cocherSerie(evenement.target);
 });
 ecranSeance.addEventListener('click', (evenement) => {
+  const appliquer = evenement.target.closest('[data-appliquer]');
+  if (appliquer) {
+    appliquerConseil(appliquer);
+    return;
+  }
   const action = evenement.target.closest('[data-action]');
   if (!action) return;
   if (action.dataset.action === 'terminer') terminerSeance();

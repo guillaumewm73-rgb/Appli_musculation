@@ -1193,6 +1193,370 @@ body.defile .barre__titre {
   border-radius: 2px;
 }
 
+/* =========================================================
+   Sam, le coach
+   ========================================================= */
+
+/* Avatar de Sam : dégradé de l'appli (cobalt → violet), texte blanc ≥ 4,5:1 */
+.avatar-sam {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f63e8, #6a4fdc);
+  box-shadow: 0 8px 22px -8px #6b7cff;
+  color: var(--couleur-sur-action);
+  font-weight: var(--graisse-accent);
+}
+
+.avatar-sam--mini {
+  width: 24px;
+  height: 24px;
+  font-size: var(--texte-legende);
+  box-shadow: none;
+}
+
+.carte-sam .avatar-sam {
+  animation: halo-sam 3.2s ease-in-out infinite;
+}
+
+@keyframes halo-sam {
+  50% { box-shadow: 0 0 0 6px rgb(107 124 255 / 0.12), 0 8px 26px -6px #6b7cff; }
+}
+
+.sam-entete {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-16);
+}
+
+.sam-entete .avatar-sam {
+  width: 56px;
+  height: 56px;
+  font-size: var(--texte-sous-titre);
+}
+
+.sam-entete__mot {
+  font-size: var(--texte-grand);
+  line-height: 1.4;
+}
+
+/* Listes de conseils */
+.conseils {
+  list-style: none;
+  margin: var(--esp-12) 0 0;
+  padding: 0;
+}
+
+.conseil {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: var(--esp-12);
+  padding: var(--esp-12) 0;
+  border-top: 1px solid var(--couleur-controle);
+}
+
+.conseil__type {
+  min-width: 84px;
+  padding: 2px var(--esp-8);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-pilule);
+  font-size: var(--texte-legende);
+  text-align: center;
+}
+
+.conseil__type--monter {
+  border-color: transparent;
+  background: var(--accent-degrade);
+  color: var(--couleur-sur-action);
+}
+
+.conseil__type--baisser {
+  border-color: var(--couleur-texte);
+}
+
+.conseil__type--saute,
+.conseil__type--stagne {
+  border-style: dashed;
+  border-color: var(--couleur-texte-secondaire);
+}
+
+.conseil__type--garder {
+  border-color: transparent;
+  background: var(--couleur-controle);
+}
+
+.conseil__textes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.conseil__nom {
+  font-weight: var(--graisse-accent);
+}
+
+.conseil__texte {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Équilibre du programme : une jauge par muscle */
+.muscles {
+  list-style: none;
+  margin: var(--esp-12) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-8);
+}
+
+.muscle {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) 9.5em; /* colonnes fixes : toutes les jauges ont la même longueur */
+  align-items: center;
+  gap: var(--esp-12);
+  font-size: var(--texte-petit);
+}
+
+.muscle__jauge {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--rayon-pilule);
+  background: rgb(255 255 255 / 0.08);
+}
+
+.muscle__jauge span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4f63e8, #6a4fdc);
+}
+
+.muscle--faible .muscle__jauge span {
+  background: var(--couleur-bordure);
+}
+
+.muscle__valeur {
+  color: var(--couleur-texte-secondaire);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dans la séance : repos conseillé et conseil de charge */
+.exercice__sam {
+  margin-top: var(--esp-8);
+}
+
+.exercice__repos {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+.conseil-seance {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-8);
+  margin-top: var(--esp-8);
+  padding: var(--esp-4) var(--esp-4) var(--esp-4) var(--esp-12);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: var(--rayon-pilule);
+  background: rgb(255 255 255 / 0.04);
+  font-size: var(--texte-petit);
+}
+
+.conseil-seance__texte {
+  flex: 1;
+}
+
+.bouton-mini {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--esp-16);
+  border: 1px solid var(--couleur-texte);
+  border-radius: var(--rayon-pilule);
+  background: transparent;
+  color: var(--couleur-texte);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bouton-mini:disabled {
+  border-color: transparent;
+  color: var(--couleur-texte-secondaire);
+  cursor: default;
+}
+
+.bouton-lien {
+  min-height: var(--cible-min);
+  border: 0;
+  background: none;
+  color: var(--couleur-texte-secondaire);
+  font: inherit;
+  font-size: var(--texte-petit);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Configuration de la clé */
+.etapes {
+  margin: 0 0 var(--esp-12);
+  padding-left: var(--esp-20);
+}
+
+.etapes li {
+  margin: var(--esp-8) 0;
+}
+
+.etapes a {
+  color: var(--accent-clair);
+}
+
+/* Discussion */
+.fil {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-12);
+}
+
+.bulle {
+  max-width: 88%;
+  animation: message-entree 0.35s var(--courbe);
+}
+
+.bulle__texte {
+  padding: var(--esp-12) var(--esp-16);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bulle--moi {
+  align-self: flex-end;
+}
+
+.bulle--moi .bulle__texte {
+  border-radius: 20px 20px 6px 20px;
+  background: linear-gradient(135deg, #4f63e8, #6a4fdc);
+  color: var(--couleur-sur-action);
+}
+
+.bulle--sam {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--esp-8);
+  align-self: flex-start;
+}
+
+.bulle--sam .bulle__texte {
+  border-radius: 20px 20px 20px 6px;
+  background: var(--couleur-carte);
+}
+
+.bulle--erreur {
+  align-self: stretch;
+  max-width: none;
+}
+
+.bulle--erreur .bulle__texte {
+  border: 1px dashed var(--couleur-texte-secondaire);
+  border-radius: var(--rayon-carte);
+  color: var(--couleur-texte-secondaire);
+  font-size: var(--texte-petit);
+}
+
+/* « Sam réfléchit » : trois points qui clignotent */
+.points::after {
+  content: "•••";
+  letter-spacing: 3px;
+  animation: clignote 1.2s ease-in-out infinite;
+}
+
+@keyframes clignote {
+  50% { opacity: 0.3; }
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-8);
+}
+
+.suggestion {
+  min-height: 44px;
+  padding: var(--esp-8) var(--esp-16);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: var(--rayon-pilule);
+  background: transparent;
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: var(--texte-petit);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s var(--courbe), background-color 0.2s;
+}
+
+.suggestion:active {
+  transform: scale(0.97);
+  background: var(--couleur-controle);
+}
+
+/* Barre de saisie : reste en bas de l'écran */
+.saisie {
+  position: sticky;
+  bottom: calc(var(--esp-12) + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--esp-8);
+  margin-top: var(--esp-8);
+  padding: var(--esp-8);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: var(--rayon-pilule);
+  background: rgb(23 23 33 / 0.92);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.saisie__zone {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--cible-min);
+  max-height: 140px;
+  padding: 13px var(--esp-16);
+  border: 0;
+  border-radius: 24px;
+  background: var(--couleur-controle);
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: var(--texte-corps);
+  line-height: 1.4;
+  resize: none;
+}
+
+.saisie__zone::placeholder {
+  color: var(--couleur-texte-secondaire);
+}
+
+.saisie__envoyer {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--cible-min);
+  height: var(--cible-min);
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f63e8, #6a4fdc);
+  color: var(--couleur-sur-action);
+  cursor: pointer;
+  transition: transform 0.15s var(--courbe);
+}
+
+.saisie__envoyer:active {
+  transform: scale(0.92);
+}
+
 /* Réglage « Réduire les animations » du téléphone : tout devient immédiat */
 @media (prefers-reduced-motion: reduce) {
   *,
