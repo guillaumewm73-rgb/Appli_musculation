@@ -5,7 +5,8 @@
    Étape 4 : historique (liste, détail, suppression).
    Étape 5 : progression (courbe SVG du meilleur poids).
    Étape 6 : édition du programme.
-   Étape 7 : export / import JSON. */
+   Étape 7 : export / import JSON.
+   Étape 8 : couleurs par séance, animations, effets au scroll. */
 'use strict';
 
 /* ---------- Programme de départ ---------- */
@@ -241,6 +242,80 @@ function afficherMessage(texte) {
   zone.hidden = !texte;
 }
 
+/* ---------- Couleurs et mouvement ---------- */
+
+const mouvementReduit = window.matchMedia('(prefers-reduced-motion: reduce)');
+const TEINTES = ['teinte-1', 'teinte-2', 'teinte-3', 'teinte-4'];
+
+/** Couleur d'une séance selon sa place dans le programme (Push bleu, Pull vert d'eau, Legs orange, Variation prune). */
+function teinte(seanceId) {
+  const index = etat.donnees.programme.findIndex((s) => s.id === seanceId);
+  return TEINTES[Math.max(0, index) % TEINTES.length];
+}
+
+/** Petite vibration au toucher (Android ; ignorée ailleurs). */
+function vibrer() {
+  if (!mouvementReduit.matches && navigator.vibrate) navigator.vibrate(12);
+}
+
+// Les cartes apparaissent en glissant quand elles entrent à l'écran
+let debutApparitions = 0;
+const observateur = 'IntersectionObserver' in window
+  ? new IntersectionObserver((entrees) => {
+    for (const entree of entrees) {
+      if (!entree.isIntersecting) continue;
+      // Hors de la première vague : pas de délai, la carte suit le doigt
+      const el = entree.target;
+      if (performance.now() - debutApparitions > 600) el.style.setProperty('--delai', '0ms');
+      el.classList.add('visible');
+      observateur.unobserve(el);
+      // Animation finie : on retire les classes pour rendre aux éléments leurs propres transitions
+      el.addEventListener('transitionend', function nettoyer(evenement) {
+        if (evenement.target !== el || evenement.propertyName !== 'transform') return;
+        el.classList.remove('apparition', 'visible');
+        el.style.removeProperty('--delai');
+        el.removeEventListener('transitionend', nettoyer);
+      });
+    }
+  }, { rootMargin: '0px 0px -6% 0px', threshold: 0.05 })
+  : null;
+
+function animerApparitions(conteneur) {
+  if (!observateur || mouvementReduit.matches) return;
+  debutApparitions = performance.now();
+  const elements = conteneur.querySelectorAll('.carte, .liste-seances > li, .tuile, .titre-section, .actions');
+  elements.forEach((el, i) => {
+    el.classList.add('apparition');
+    el.style.setProperty('--delai', `${Math.min(i, 7) * 55}ms`);
+    observateur.observe(el);
+  });
+}
+
+/** Pluie de confettis aux couleurs de la séance (fin de séance). */
+function lancerConfettis(classeTeinte) {
+  if (mouvementReduit.matches || !Element.prototype.animate) return;
+  const conteneur = creer('div', `confettis ${classeTeinte}`);
+  conteneur.setAttribute('aria-hidden', 'true');
+  const couleurs = ['var(--accent)', 'var(--accent-clair)', '#ededf3', 'var(--accent-fort)'];
+  for (let i = 0; i < 70; i++) {
+    const confetti = creer('span', 'confetti');
+    confetti.style.background = couleurs[i % couleurs.length];
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+    const elan = 220 + Math.random() * 320;
+    const dx = Math.cos(angle) * elan;
+    const dy = Math.sin(angle) * elan;
+    const tour = (Math.random() - 0.5) * 900;
+    confetti.animate([
+      { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${tour / 2}deg)`, opacity: 1, offset: 0.45 },
+      { transform: `translate(${dx * 1.25}px, ${dy + 520}px) rotate(${tour}deg)`, opacity: 0 },
+    ], { duration: 1500 + Math.random() * 700, easing: 'cubic-bezier(.2,.7,.4,1)', fill: 'forwards' });
+    conteneur.append(confetti);
+  }
+  document.body.append(conteneur);
+  setTimeout(() => conteneur.remove(), 2400);
+}
+
 /* ---------- Séance en cours ---------- */
 
 function trouverSeance(seanceId) {
@@ -318,49 +393,132 @@ function enregistrer() {
 
 const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice', 'sauvegarde'];
 
-/** Affiche un écran : titre, bouton retour, focus pour les lecteurs d'écran. */
-function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil') {
+/**
+ * Affiche un écran : titre, bouton retour, couleur de fond (séance), animations,
+ * focus pour les lecteurs d'écran.
+ */
+function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil', classeTeinte = '') {
   for (const ecran of ECRANS) document.getElementById(`ecran-${ecran}`).hidden = ecran !== nom;
   const retour = document.getElementById('bouton-retour');
   retour.hidden = nom === 'accueil';
   retour.setAttribute('aria-label', libelleRetour);
   etat.ecran = nom;
+  document.body.classList.remove(...TEINTES);
+  if (classeTeinte) document.body.classList.add(classeTeinte);
+  const enSeance = nom === 'seance';
+  document.getElementById('compteur-seance').hidden = !enSeance;
+  document.getElementById('avancement-seance').hidden = !enSeance;
+
   const h1 = document.getElementById('titre-ecran');
   h1.textContent = titre;
+  h1.classList.remove('titre--entree');
+  void h1.offsetWidth; // relance l'animation du titre
+  h1.classList.add('titre--entree');
   window.scrollTo(0, 0);
   h1.focus({ preventScroll: true });
+  animerApparitions(document.getElementById(`ecran-${nom}`));
 }
 
 /** Bouton-carte d'une séance pour l'écran d'accueil. */
-function creerBoutonSeance(seance, numero) {
+function creerBoutonSeance(seance, numero, prochaine) {
   const { historique, enCours } = etat.donnees;
   const nbExercices = seance.exercices.length;
+  const enCoursIci = enCours && enCours.seanceId === seance.id;
   let quand;
-  if (enCours && enCours.seanceId === seance.id) {
-    quand = `En cours depuis ${formaterHeure(enCours.debut)}`;
+  if (enCoursIci) {
+    const { faites, total } = compterSeries(enCours);
+    quand = `${faites}/${total} séries · depuis ${formaterHeure(enCours.debut)}`;
   } else {
     const date = derniereFois(historique, seance.id);
     quand = date ? `Dernière fois : ${formaterDate(date)}` : 'Pas encore faite';
   }
 
-  const bouton = creerBoutonCarte(`Séance ${numero}`, seance.nom, `${nbExercices} exercice${nbExercices > 1 ? 's' : ''} · ${quand}`);
+  const bouton = creerBoutonCarte(`Séance ${numero}`, seance.nom, `${nbExercices} exercice${nbExercices > 1 ? 's' : ''} · ${quand}`, numero, teinte(seance.id));
   bouton.dataset.seance = seance.id;
+  if (enCoursIci) {
+    bouton.querySelector('.seance__numero').append(creer('span', 'puce puce--en-cours', 'En cours'));
+    const { faites, total } = compterSeries(enCours);
+    const jauge = creer('span', 'seance__jauge');
+    const remplissage = document.createElement('span');
+    remplissage.style.width = `${total ? Math.round((faites / total) * 100) : 0}%`;
+    jauge.append(remplissage);
+    bouton.querySelector('.seance__textes').append(jauge);
+  } else if (prochaine) {
+    bouton.querySelector('.seance__numero').append(creer('span', 'puce', 'Prochaine'));
+  }
   return bouton;
 }
 
-/** Carte cliquable à trois lignes (petit texte, nom, infos) avec flèche. */
-function creerBoutonCarte(haut, nom, infos) {
+/** Carte cliquable : pastille numérotée de couleur, trois lignes de texte, flèche. */
+function creerBoutonCarte(haut, nom, infos, numero, classeTeinte) {
+  const pastille = creer('span', 'pastille-seance', numero > 0 ? String(numero) : '·');
+  pastille.setAttribute('aria-hidden', 'true');
   const textes = creer('span', 'seance__textes');
   textes.append(
     creer('span', 'seance__numero', haut),
     creer('span', 'seance__nom', nom),
     creer('span', 'seance__infos', infos),
   );
-  const bouton = creer('button', 'seance');
+  const bouton = creer('button', `seance ${classeTeinte}`);
   bouton.type = 'button';
-  bouton.append(textes);
+  bouton.append(pastille, textes);
   bouton.insertAdjacentHTML('beforeend', ICONE_FLECHE);
   return bouton;
+}
+
+/** Lundi 0 h de la semaine en cours (ms). */
+function debutSemaine() {
+  const d = new Date();
+  const lundi = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  lundi.setDate(lundi.getDate() - ((lundi.getDay() + 6) % 7));
+  return lundi.getTime();
+}
+
+/** Carte « Cette semaine » : une barre colorée par séance faite depuis lundi. */
+function remplirSemaine() {
+  const debut = debutSemaine();
+  const faites = entreesHistorique().filter((e) => tempsDepuisId(e.id) >= debut).reverse();
+  const objectif = Math.max(1, etat.donnees.programme.length);
+  const reste = objectif - faites.length;
+
+  const haut = creer('div', 'semaine__haut');
+  const titre = creer('h2', 'semaine__titre', 'Cette semaine');
+  titre.id = 'titre-semaine';
+  const compte = creer('span', 'semaine__compte', `${faites.length}/${objectif}`);
+  compte.setAttribute('aria-label', `${faites.length} séance${faites.length > 1 ? 's' : ''} sur ${objectif}`);
+  haut.append(titre, compte);
+
+  const barres = creer('div', 'semaine__barres');
+  barres.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < Math.max(objectif, faites.length); i++) {
+    const entree = faites[i];
+    const colonne = creer('span', `semaine__colonne${entree ? ` ${teinte(entree.seanceId)}` : ''}`);
+    const barre = creer('span', `semaine__barre${entree ? ' semaine__barre--pleine' : ''}`);
+    barre.style.setProperty('--delai', `${150 + i * 110}ms`);
+    colonne.append(barre, creer('span', 'semaine__etiquette', entree ? nomSeance(entree.seanceId) : ''));
+    barres.append(colonne);
+  }
+
+  let texte;
+  if (faites.length === 0) texte = 'Nouvelle semaine : c\'est parti.';
+  else if (reste > 0) texte = `Encore ${reste} séance${reste > 1 ? 's' : ''} pour boucler la semaine.`;
+  else texte = 'Semaine bouclée. Bravo !';
+  const resume = faites.length ? ` Faites : ${faites.map((e) => nomSeance(e.seanceId)).join(', ')}.` : '';
+  const phrase = creer('p', 'semaine__texte', texte);
+  phrase.append(creer('span', 'visuellement-cache', resume));
+
+  document.getElementById('semaine').replaceChildren(haut, barres, phrase);
+}
+
+/** Petites infos des tuiles de l'accueil. */
+function remplirTuiles() {
+  const { historique, programme, derniereSauvegarde } = etat.donnees;
+  const nb = historique.length;
+  const nbExercices = programme.reduce((total, s) => total + s.exercices.length, 0);
+  document.getElementById('info-historique').textContent = `${nb} séance${nb > 1 ? 's' : ''}`;
+  document.getElementById('info-programme').textContent = `${nbExercices} exercices`;
+  document.getElementById('info-sauvegarde').textContent = Number.isFinite(derniereSauvegarde)
+    ? `Faite ${ilYA(derniereSauvegarde)}` : 'Jamais faite';
 }
 
 /** Date de la dernière fois qu'une séance a été faite, ou null. */
@@ -372,14 +530,22 @@ function derniereFois(historique, seanceId) {
   return dates.length ? dates[dates.length - 1] : null;
 }
 
-/** Écran d'accueil : les séances du programme. */
+/** Écran d'accueil : semaine, séances, tuiles. */
 function afficherAccueil() {
-  document.getElementById('liste-seances').replaceChildren(...etat.donnees.programme.map((seance, i) => {
+  const { programme, historique } = etat.donnees;
+  // « Prochaine » : la première séance du programme pas encore faite cette semaine
+  const debut = debutSemaine();
+  const faitesCetteSemaine = new Set(historique.filter((e) => e && tempsDepuisId(String(e.id)) >= debut).map((e) => e.seanceId));
+  const prochaine = programme.find((s) => !faitesCetteSemaine.has(s.id));
+
+  remplirSemaine();
+  remplirTuiles();
+  document.getElementById('liste-seances').replaceChildren(...programme.map((seance, i) => {
     const item = document.createElement('li');
-    item.append(creerBoutonSeance(seance, i + 1));
+    item.append(creerBoutonSeance(seance, i + 1, !etat.donnees.enCours && seance === prochaine));
     return item;
   }));
-  montrerEcran('accueil', 'Suivi');
+  montrerEcran('accueil', 'Salut Guillaume');
 }
 
 /** Champ texte poids ou reps, avec le bon clavier sur téléphone. */
@@ -398,7 +564,7 @@ function creerChamp(champ, valeur, clavier, indice, libelle) {
 
 /** Ligne d'une série : numéro, poids, reps, case « fait ». */
 function creerLigneSerie(exercice, serie, i, j) {
-  const ligne = creer('div', 'serie');
+  const ligne = creer('div', serie.fait ? 'serie serie--faite' : 'serie');
   ligne.dataset.exercice = i;
   ligne.dataset.serie = j;
   const prefixe = `${exercice.nom}, série ${j + 1}`;
@@ -444,10 +610,42 @@ function creerCarteExercice(exEnCours, i, definition) {
   const series = creer('div', 'series');
   series.append(entete, ...exEnCours.series.map((serie, j) => creerLigneSerie(exercice, serie, i, j)));
 
+  const compte = creer('span', 'exercice__compte');
+  const haut = creer('div', 'exercice__haut');
+  haut.append(titre, compte);
+
   const carte = creer('article', 'carte exercice');
+  carte.dataset.exercice = i;
   carte.setAttribute('aria-labelledby', titre.id);
-  carte.append(titre, creer('p', 'exercice__cible', texteCible(exercice)), series);
+  carte.append(haut, creer('p', 'exercice__cible', texteCible(exercice)), series);
+  majCarteExercice(carte, exEnCours);
   return carte;
+}
+
+/** Compteur « 2/4 » et état « terminé » d'une carte d'exercice. */
+function majCarteExercice(carte, exEnCours) {
+  const faites = exEnCours.series.filter((s) => s.fait).length;
+  const total = exEnCours.series.length;
+  const termine = total > 0 && faites === total;
+  const compte = carte.querySelector('.exercice__compte');
+  compte.textContent = termine ? 'Terminé' : `${faites}/${total}`;
+  const etaitTermine = carte.classList.contains('exercice--termine');
+  carte.classList.toggle('exercice--termine', termine);
+  if (termine && !etaitTermine && carte.isConnected) compte.classList.add('pop');
+}
+
+/** Barre d'avancement et compteur de la séance (barre du haut). */
+function majAvancement() {
+  const enCours = etat.donnees.enCours;
+  if (!enCours) return;
+  const { faites, total } = compterSeries(enCours);
+  const pourcentage = total ? Math.round((faites / total) * 100) : 0;
+  document.querySelector('#avancement-seance span').style.width = `${pourcentage}%`;
+  const compteur = document.getElementById('compteur-seance');
+  compteur.textContent = `${faites}/${total}`;
+  compteur.setAttribute('aria-label', `${faites} séries faites sur ${total}`);
+  const terminer = document.querySelector('[data-action="terminer"]');
+  if (terminer) terminer.classList.toggle('bouton--pret', total > 0 && faites === total);
 }
 
 /** Écran de séance : exercices, séries, boutons Terminer / Abandonner. */
@@ -469,7 +667,8 @@ function afficherSeance() {
   actions.append(terminer, abandonner);
 
   document.getElementById('ecran-seance').replaceChildren(info, ...cartes, actions);
-  montrerEcran('seance', seance ? seance.nom : 'Séance');
+  montrerEcran('seance', seance ? seance.nom : 'Séance', 'Retour à l\'accueil', teinte(enCours.seanceId));
+  majAvancement();
 }
 
 /* ---------- Actions ---------- */
@@ -519,13 +718,25 @@ function saisirValeur(input) {
   enregistrer();
 }
 
-/** Coche ou décoche une série. */
+/** Coche ou décoche une série : enregistrement, animation, compteurs. */
 function cocherSerie(caseFait) {
   const ligne = caseFait.closest('.serie');
-  const serie = etat.donnees.enCours.exercices[Number(ligne.dataset.exercice)].series[Number(ligne.dataset.serie)];
+  const exEnCours = etat.donnees.enCours.exercices[Number(ligne.dataset.exercice)];
+  const serie = exEnCours.series[Number(ligne.dataset.serie)];
   serie.fait = caseFait.checked;
   etat.donnees.enCours.derniereAction = Date.now();
   enregistrer();
+
+  ligne.classList.toggle('serie--faite', serie.fait);
+  if (serie.fait) {
+    const boite = ligne.querySelector('.coche__boite');
+    boite.classList.remove('pop');
+    void boite.offsetWidth; // relance l'animation
+    boite.classList.add('pop');
+    vibrer();
+  }
+  majCarteExercice(ligne.closest('.exercice'), exEnCours);
+  majAvancement();
 }
 
 /** Enregistre la séance dans l'historique puis revient à l'accueil. */
@@ -560,10 +771,12 @@ function terminerSeance() {
 
   const seance = trouverSeance(entree.seanceId);
   const nom = seance ? seance.nom : 'Séance';
+  const classeTeinte = teinte(entree.seanceId);
   afficherAccueil();
   afficherMessage(etat.enregistrable
-    ? `${nom} enregistrée : ${entree.dureeMin} min.`
+    ? `${nom} enregistrée : ${entree.dureeMin} min, ${faites} série${faites > 1 ? 's' : ''}. Bien joué !`
     : `${nom} terminée mais non enregistrée (stockage indisponible).`);
+  lancerConfettis(classeTeinte);
 }
 
 function abandonnerSeance() {
@@ -633,7 +846,8 @@ function afficherHistorique() {
       const { faites, total } = compterSeries(entree);
       const heure = heureDepuisId(entree.id);
       const infos = [texteDuree(entree), `${faites}/${total} série${total > 1 ? 's' : ''}`].filter(Boolean).join(' · ');
-      const bouton = creerBoutonCarte(`${formaterDate(entree.id)}${heure ? ` · ${heure}` : ''}`, nomSeance(entree.seanceId), infos);
+      const numero = etat.donnees.programme.findIndex((s) => s.id === entree.seanceId) + 1;
+      const bouton = creerBoutonCarte(`${formaterDate(entree.id)}${heure ? ` · ${heure}` : ''}`, nomSeance(entree.seanceId), infos, numero, teinte(entree.seanceId));
       bouton.dataset.entree = entree.id;
       const item = document.createElement('li');
       item.append(bouton);
@@ -690,7 +904,7 @@ function afficherDetail(entreeId) {
   actions.append(supprimer);
 
   document.getElementById('ecran-detail').replaceChildren(info, ...entree.exercices.map(creerCarteDetail), actions);
-  montrerEcran('detail', nomSeance(entree.seanceId), 'Retour à l\'historique');
+  montrerEcran('detail', nomSeance(entree.seanceId), 'Retour à l\'historique', teinte(entree.seanceId));
 }
 
 /** Supprime une séance passée après confirmation. */
@@ -792,7 +1006,7 @@ function texteEvolution(points) {
  * Courbe SVG maison. Toucher ou glisser sur la courbe (ou flèches du clavier)
  * choisit un point ; sa valeur s'affiche dans la zone de lecture.
  */
-function dessinerGraphe(zone, lecture, points, exercice) {
+function dessinerGraphe(zone, lecture, points, exercice, animer) {
   const largeur = Math.max(240, Math.floor(zone.clientWidth));
   const hauteur = 200;
   const marge = { haut: 12, droite: 12, bas: 28, gauche: 40 };
@@ -833,10 +1047,23 @@ function dessinerGraphe(zone, lecture, points, exercice) {
     graphe.append(texte);
   }
 
-  // Courbe et points (anneau couleur de la carte pour les détacher)
+  // Aire en dégradé sous la courbe (lavis léger de la couleur de la séance)
+  const defs = creerSvg('defs', {});
+  const degrade = creerSvg('linearGradient', { id: 'degrade-aire', x1: 0, y1: 0, x2: 0, y2: 1 });
+  degrade.append(
+    creerSvg('stop', { offset: 0, 'stop-color': 'currentColor', 'stop-opacity': 0.28 }),
+    creerSvg('stop', { offset: 1, 'stop-color': 'currentColor', 'stop-opacity': 0 }),
+  );
+  defs.append(degrade);
+  graphe.prepend(defs);
   const trace = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.temps).toFixed(1)},${y(p.poids).toFixed(1)}`).join('');
-  graphe.append(creerSvg('path', { d: trace }, 'graphe__ligne'));
-  for (const p of points) graphe.append(creerSvg('circle', { cx: x(p.temps), cy: y(p.poids), r: 4 }, 'graphe__point'));
+  const bas = hauteur - marge.bas;
+  const aire = creerSvg('path', { d: `${trace}L${x(t1).toFixed(1)},${bas}L${x(t0).toFixed(1)},${bas}Z`, fill: 'url(#degrade-aire)' }, 'graphe__aire');
+  const ligne = creerSvg('path', { d: trace }, 'graphe__ligne');
+  graphe.append(aire, ligne);
+  // Points (anneau couleur de la carte pour les détacher de la ligne)
+  const ronds = points.map((p) => creerSvg('circle', { cx: x(p.temps), cy: y(p.poids), r: 4 }, 'graphe__point'));
+  graphe.append(...ronds);
 
   // Curseur : trait vertical + point agrandi sur la séance choisie
   const curseur = creerSvg('line', { y1: marge.haut, y2: hauteur - marge.bas }, 'graphe__curseur');
@@ -881,6 +1108,17 @@ function dessinerGraphe(zone, lecture, points, exercice) {
 
   choisir(indexChoisi);
   zone.replaceChildren(graphe);
+
+  // La courbe se dessine de gauche à droite, puis les points apparaissent
+  if (animer && !mouvementReduit.matches && ligne.getTotalLength) {
+    const longueur = ligne.getTotalLength();
+    ligne.animate([{ strokeDasharray: longueur, strokeDashoffset: longueur }, { strokeDasharray: longueur, strokeDashoffset: 0 }],
+      { duration: 900, easing: 'cubic-bezier(.4,0,.2,1)' });
+    aire.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, delay: 400, fill: 'backwards' });
+    ronds.forEach((rond, i) => rond.animate([{ opacity: 0 }, { opacity: 1 }],
+      { duration: 250, delay: (900 * i) / Math.max(1, ronds.length - 1), fill: 'backwards' }));
+    [curseur, choix].forEach((el) => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 900, fill: 'backwards' }));
+  }
 }
 
 /** Tableau des valeurs (équivalent accessible de la courbe), la plus récente en premier. */
@@ -905,8 +1143,13 @@ function creerTableauProgression(points, exercice) {
   return tableau;
 }
 
-/** Remplit la zone de résultats pour l'exercice choisi. */
-function majProgression() {
+/** Séance du programme qui contient un exercice (pour sa couleur). */
+function seanceDeExercice(exerciceId) {
+  return etat.donnees.programme.find((s) => s.exercices.some((e) => e && e.id === exerciceId));
+}
+
+/** Remplit la zone de résultats pour l'exercice choisi (animer = false au redimensionnement). */
+function majProgression(animer = true) {
   const exerciceId = document.getElementById('choix-exercice').value;
   etat.exerciceProgression = exerciceId;
   const exercice = trouverExerciceDansProgramme(exerciceId);
@@ -925,7 +1168,8 @@ function majProgression() {
   const resume = [`Record : ${formaterNombre(record.poids)} kg le ${formaterDate(record.id)}`];
   if (points.length > 1) resume.push(texteEvolution(points));
 
-  const carteGraphe = creer('article', 'carte');
+  const seance = seanceDeExercice(exerciceId);
+  const carteGraphe = creer('article', `carte ${seance ? teinte(seance.id) : 'teinte-1'}`);
   const lecture = creer('p', 'lecture');
   lecture.setAttribute('aria-live', 'polite');
   const zone = creer('div', 'graphe-zone');
@@ -941,7 +1185,8 @@ function majProgression() {
   carteTableau.append(creer('h2', 'exercice__nom', 'Séances'), creerTableauProgression(points, exercice));
 
   resultats.replaceChildren(carteGraphe, carteTableau);
-  dessinerGraphe(zone, lecture, points, exercice);
+  dessinerGraphe(zone, lecture, points, exercice, animer);
+  if (animer) animerApparitions(resultats);
 }
 
 /** Écran Progression : choix de l'exercice, courbe, tableau. */
@@ -1040,8 +1285,12 @@ function remplirProgramme() {
     const ajouter = creer('button', 'bouton bouton--secondaire', 'Ajouter un exercice');
     ajouter.type = 'button';
     ajouter.dataset.ajouter = seance.id;
-    const carte = creer('article', 'carte');
-    carte.append(creer('h2', 'exercice__nom', `Séance ${s + 1} · ${seance.nom}`), liste, ajouter);
+    const pastille = creer('span', 'pastille-seance', String(s + 1));
+    pastille.setAttribute('aria-hidden', 'true');
+    const titre = creer('h2', 'exercice__nom titre-avec-pastille');
+    titre.append(pastille, creer('span', '', `Séance ${s + 1} · ${seance.nom}`));
+    const carte = creer('article', `carte ${teinte(seance.id)}`);
+    carte.append(titre, liste, ajouter);
     return carte;
   });
   const aide = creer('p', 'texte-secondaire', 'Touche un exercice pour le modifier. Les flèches changent l\'ordre.');
@@ -1158,7 +1407,7 @@ function afficherFormulaireExercice(seanceId, exerciceId) {
   );
 
   document.getElementById('ecran-exercice').replaceChildren(form);
-  montrerEcran('exercice', exercice ? exercice.nom : 'Nouvel exercice', 'Retour au programme');
+  montrerEcran('exercice', exercice ? exercice.nom : 'Nouvel exercice', 'Retour au programme', teinte(seance.id));
 }
 
 /** Lit et vérifie le formulaire. Renvoie { exercice } ou { erreur, champ }. */
@@ -1530,7 +1779,7 @@ window.addEventListener('resize', () => {
   redessinPrevu = true;
   requestAnimationFrame(() => {
     redessinPrevu = false;
-    if (document.getElementById('choix-exercice')) majProgression();
+    if (document.getElementById('choix-exercice')) majProgression(false);
   });
 });
 
@@ -1600,6 +1849,10 @@ ecranSeance.addEventListener('click', (evenement) => {
   if (action.dataset.action === 'terminer') terminerSeance();
   else abandonnerSeance();
 });
+
+// Barre du haut : se compacte et devient « verre dépoli » dès qu'on fait défiler
+const marquerDefilement = () => document.body.classList.toggle('defile', window.scrollY > 8);
+window.addEventListener('scroll', marquerDefilement, { passive: true });
 
 // Séance interrompue (appli fermée, téléphone verrouillé) : on la reprend directement.
 // Si rien n'était coché, le chrono repart de maintenant.

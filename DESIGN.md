@@ -4,7 +4,27 @@ Référence : style **Mercury** (« Alpine banking at blue hour », thème sombr
 La première partie dit comment on l'applique à une PWA mobile utilisée en salle, à une main.
 Les jetons (tokens) sont en tête de `style.css`.
 
-## Règles appliquées
+## v2 — Couleur et mouvement (13/10/2026, à la demande de Guillaume)
+
+« On doit avoir envie d'utiliser l'appli. » La base Mercury reste (fond onyx, cartes graphite, pilules, graisse 480, texte ivoire/ash), avec en plus :
+
+- **Une couleur par séance**, toujours accompagnée du nom et du numéro (la couleur n'est jamais le seul repère). Palette validée (contraste ≥ 3:1 sur `#1e1e2a`, séparation daltonisme ΔE ≥ 9,4 sur toutes les paires) :
+
+  | Séance | Accent | Dégradé des boutons (texte blanc ≥ 4,5:1) |
+  |---|---|---|
+  | 1 · Push | `#6b7cff` | `#4f63e8` → `#6a4fdc` |
+  | 2 · Pull | `#199e70` | `#12805a` → `#0e7487` |
+  | 3 · Legs | `#d95926` | `#bf4a1c` → `#b23a2a` |
+  | 4 · Variation | `#ac43a5` | `#8f3388` → `#7339a8` |
+
+  Classes `.teinte-1` à `.teinte-4` (variables `--accent`, `--accent-clair`, `--accent-fort`, `--accent-degrade`). Le texte ne prend jamais la couleur d'accent, sauf en blanc sur un dégradé de bouton.
+- **Action principale** : dégradé de la séance en cours (cobalt → violet hors séance). Toujours une seule par écran.
+- **Halo « heure bleue »** fixe en haut de l'écran, qui dérive lentement ; sur une séance, il prend la couleur de la séance.
+- **Lueurs** autorisées sous les éléments colorés (pastilles, coches, bouton principal) ; les cartes restent sans ombre.
+- **Mouvement** : courbe `cubic-bezier(.2,.8,.2,1)`, rebond `cubic-bezier(.34,1.56,.64,1)`, 150-600 ms. Cartes qui apparaissent au défilement, titre qui glisse et se compacte, coche qui « pop » et se dessine, barre d'avancement, tracé de la courbe, confettis en fin de séance.
+- **Réglage « Réduire les animations »** du téléphone : toutes les animations deviennent immédiates, pas de confettis.
+
+## Règles appliquées (v1)
 
 | Mercury | Dans l'appli |
 |---|---|

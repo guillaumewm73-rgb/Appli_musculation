@@ -26,19 +26,42 @@
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <h1 id="titre-ecran" class="barre__titre" tabindex="-1">Suivi</h1>
+      <span id="compteur-seance" class="barre__compteur" hidden></span>
     </div>
+    <div id="avancement-seance" class="barre__avancement" hidden><span></span></div>
   </header>
 
   <main id="contenu" class="page">
     <p id="message" class="message" role="status" hidden></p>
 
     <section id="ecran-accueil" class="ecran">
+      <section id="semaine" class="carte semaine" aria-labelledby="titre-semaine"></section>
+
+      <h2 class="titre-section">Tes séances</h2>
       <ul id="liste-seances" class="liste-seances" aria-label="Séances"></ul>
-      <nav class="actions" aria-label="Autres écrans">
-        <button id="bouton-historique" class="bouton bouton--secondaire" type="button">Historique</button>
-        <button id="bouton-progression" class="bouton bouton--secondaire" type="button">Progression</button>
-        <button id="bouton-programme" class="bouton bouton--secondaire" type="button">Programme</button>
-        <button id="bouton-sauvegarde" class="bouton bouton--secondaire" type="button">Sauvegarde</button>
+
+      <h2 class="titre-section">Suivi</h2>
+      <nav class="tuiles" aria-label="Autres écrans">
+        <button id="bouton-historique" class="tuile" type="button">
+          <svg class="tuile__icone" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+          <span class="tuile__nom">Historique</span>
+          <span id="info-historique" class="tuile__info"></span>
+        </button>
+        <button id="bouton-progression" class="tuile" type="button">
+          <svg class="tuile__icone" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-6 4 3 7-9"/><path d="M15 6h5v5"/></svg>
+          <span class="tuile__nom">Progression</span>
+          <span class="tuile__info">Tes courbes</span>
+        </button>
+        <button id="bouton-programme" class="tuile" type="button">
+          <svg class="tuile__icone" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>
+          <span class="tuile__nom">Programme</span>
+          <span id="info-programme" class="tuile__info"></span>
+        </button>
+        <button id="bouton-sauvegarde" class="tuile" type="button">
+          <svg class="tuile__icone" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19.5h14"/></svg>
+          <span class="tuile__nom">Sauvegarde</span>
+          <span id="info-sauvegarde" class="tuile__info"></span>
+        </button>
       </nav>
     </section>
 

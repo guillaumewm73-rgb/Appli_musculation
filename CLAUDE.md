@@ -21,7 +21,7 @@ Le projet doit rester simple, rapide à ouvrir et utilisable sans connexion.
 - Code lisible, commenté en français quand c'est utile. Fonctions courtes.
 
 ## Style visuel
-Suivre `DESIGN.md` (référence Mercury) : fond onyx, cartes graphite sans ombre, texte ivoire, contrôles en pilule, un seul accent cobalt pour l'action principale de l'écran. Les jetons sont en tête de `style.css`.
+Suivre `DESIGN.md` : base Mercury (fond onyx, cartes graphite, texte ivoire, contrôles en pilule) + v2 demandée par Guillaume : une couleur par séance, halo coloré, animations et effets au défilement (désactivés si « Réduire les animations »). Une seule action principale par écran. Les jetons sont en tête de `style.css`.
 
 ## Programme de départ
 Données initiales à charger au premier lancement. Les poids sont ceux de mes dernières séances ; ils doivent être modifiables dans l'appli. Un champ vide signifie : je saisis moi-même.

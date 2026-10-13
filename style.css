@@ -1,8 +1,8 @@
 /* =========================================================
    Suivi de séances — styles
-   Référence visuelle : DESIGN.md (style Mercury, thème sombre).
-   Règle d'or : fond onyx, cartes graphite, texte ivoire,
-   cobalt pour UNE seule action principale par écran.
+   Référence visuelle : DESIGN.md (base Mercury, thème sombre)
+   + v2 : une couleur par séance, halo coloré, animations.
+   Le texte reste ivoire/ash ; la couleur porte l'identité de la séance.
    ========================================================= */
 
 /* ---------- Jetons (tokens) ---------- */
@@ -51,10 +51,45 @@
   --rayon-carte: 12px;
   --rayon-pilule: 32px;                 /* Boutons, champs */
 
+  /* Mouvement */
+  --courbe: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --courbe-rebond: cubic-bezier(0.34, 1.56, 0.64, 1);
+
   /* Mise en page */
   --cible-min: 48px;                    /* Cible tactile (≥ 44 px), une main en salle */
   --largeur-max: 640px;
   --marge-laterale: var(--esp-20);
+}
+
+/* ---------- Couleurs des séances (palette validée : contraste ≥ 3:1 sur fond sombre,
+   distinctes pour les daltoniens ; dégradés des boutons : texte blanc ≥ 4,5:1) ---------- */
+:root,
+.teinte-1 {
+  --accent: #6b7cff;
+  --accent-clair: #9aa6ff;
+  --accent-fort: #4f63e8;
+  --accent-degrade: linear-gradient(135deg, #4f63e8, #6a4fdc);
+}
+
+.teinte-2 {
+  --accent: #199e70;
+  --accent-clair: #5fd3a8;
+  --accent-fort: #12805a;
+  --accent-degrade: linear-gradient(135deg, #12805a, #0e7487);
+}
+
+.teinte-3 {
+  --accent: #d95926;
+  --accent-clair: #f59a6b;
+  --accent-fort: #bf4a1c;
+  --accent-degrade: linear-gradient(135deg, #bf4a1c, #b23a2a);
+}
+
+.teinte-4 {
+  --accent: #ac43a5;
+  --accent-clair: #d987d3;
+  --accent-fort: #8f3388;
+  --accent-degrade: linear-gradient(135deg, #8f3388, #7339a8);
 }
 
 /* ---------- Base ---------- */
@@ -117,9 +152,15 @@ p {
   padding-bottom: var(--esp-16);
   padding-left: max(var(--marge-laterale), env(safe-area-inset-left));
   padding-right: max(var(--marge-laterale), env(safe-area-inset-right));
-  background: rgb(23 23 33 / 0.85);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+body.defile .barre {
+  background: rgb(23 23 33 / 0.88);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border-bottom-color: rgb(255 255 255 / 0.06);
 }
 
 .barre__contenu {
@@ -367,8 +408,21 @@ p {
 
 /* Série faite = rond ivoire plein, coche onyx */
 .coche input:checked + .coche__boite {
-  background: var(--couleur-texte);
+  border-color: var(--accent);
+  background: var(--accent);
   color: var(--couleur-fond);
+  box-shadow: 0 0 18px -4px var(--accent);
+}
+
+/* La coche se dessine */
+.coche__boite path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset 0.3s var(--courbe) 0.08s;
+}
+
+.coche input:checked + .coche__boite path {
+  stroke-dashoffset: 0;
 }
 
 .coche input:focus-visible + .coche__boite {
@@ -461,6 +515,7 @@ p {
 /* Glisser le doigt horizontalement lit la courbe ; le défilement vertical reste possible */
 .graphe {
   display: block;
+  color: var(--accent); /* couleur de l'aire en dégradé (currentColor) */
   touch-action: pan-y;
   font-variant-numeric: tabular-nums;
   border-radius: var(--rayon-defaut);
@@ -476,17 +531,17 @@ p {
   font-size: var(--texte-legende);
 }
 
-/* Une seule série : ivoire, comme le reste de l'appli (le cobalt reste réservé à l'action principale) */
+/* Une seule série : la couleur de la séance de l'exercice ; le texte reste ivoire/ash */
 .graphe__ligne {
   fill: none;
-  stroke: var(--couleur-texte);
+  stroke: var(--accent);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .graphe__point {
-  fill: var(--couleur-texte);
+  fill: var(--accent);
   stroke: var(--couleur-carte);
   stroke-width: 2;
 }
@@ -669,12 +724,22 @@ p {
 
 /* Action principale : cobalt, une seule par écran */
 .bouton--principal {
-  background: var(--couleur-action);
+  background: var(--accent-degrade);
   color: var(--couleur-sur-action);
+  box-shadow: 0 12px 32px -14px var(--accent);
+}
+
+.bouton {
+  transition: transform 0.15s var(--courbe), box-shadow 0.3s;
 }
 
 .bouton:active {
-  opacity: 0.85;
+  transform: scale(0.97);
+}
+
+/* Toutes les séries cochées : le bouton Terminer respire */
+.bouton--pret {
+  animation: respire 1.8s ease-in-out infinite;
 }
 
 /* Action secondaire : contour ivoire, fond transparent */
@@ -695,4 +760,448 @@ p {
   font-weight: var(--graisse-accent);
   letter-spacing: 0.01em;
   color: var(--couleur-texte-secondaire);
+}
+
+/* =========================================================
+   v2 : couleur et mouvement (demande de Guillaume)
+   ========================================================= */
+
+/* Halo « heure bleue » qui flotte en haut de l'écran */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  top: -30vh;
+  left: -25vw;
+  right: -25vw;
+  height: 80vh;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::before {
+  background:
+    radial-gradient(closest-side at 28% 45%, rgb(82 102 235 / 0.42), transparent),
+    radial-gradient(closest-side at 74% 35%, rgb(124 79 220 / 0.34), transparent),
+    radial-gradient(closest-side at 52% 72%, rgb(25 158 112 / 0.2), transparent);
+  animation: aurore 16s ease-in-out infinite alternate;
+}
+
+/* Sur une séance, le halo prend sa couleur */
+body::after {
+  background: radial-gradient(closest-side at 50% 50%, var(--accent), transparent);
+  opacity: 0;
+  transition: opacity 0.6s;
+}
+
+body.teinte-1::after,
+body.teinte-2::after,
+body.teinte-3::after,
+body.teinte-4::after {
+  opacity: 0.32;
+}
+
+@keyframes aurore {
+  from { transform: translate3d(-5%, -2%, 0) scale(1); }
+  to { transform: translate3d(5%, 3%, 0) scale(1.1); }
+}
+
+/* Titre : glisse en entrant, se compacte au défilement */
+.barre__titre {
+  transition: font-size 0.3s var(--courbe);
+}
+
+body.defile .barre__titre {
+  font-size: var(--texte-sous-titre);
+}
+
+.titre--entree {
+  animation: titre-entree 0.45s var(--courbe) both;
+}
+
+@keyframes titre-entree {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* Compteur et barre d'avancement de la séance (dans la barre du haut) */
+.barre__compteur {
+  flex: none;
+  margin-left: auto;
+  padding: var(--esp-4) var(--esp-12);
+  border-radius: var(--rayon-pilule);
+  background: rgb(255 255 255 / 0.08);
+  font-size: var(--texte-petit);
+  font-variant-numeric: tabular-nums;
+}
+
+.barre__avancement {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.barre__avancement span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(90deg, var(--accent-fort), var(--accent-clair));
+  box-shadow: 0 0 12px var(--accent);
+  transition: width 0.5s var(--courbe);
+}
+
+/* Message : arrive en rebondissant */
+.message {
+  background: rgb(30 30 42 / 0.92);
+  border-color: rgb(255 255 255 / 0.14);
+  animation: message-entree 0.45s var(--courbe-rebond);
+}
+
+@keyframes message-entree {
+  from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+}
+
+.titre-section {
+  margin-top: var(--esp-12);
+  font-size: var(--texte-legende);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Apparition au défilement (classes posées par le script) */
+.apparition {
+  opacity: 0;
+  transform: translateY(18px) scale(0.985);
+}
+
+.apparition.visible {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.5s var(--courbe) var(--delai, 0ms),
+    transform 0.6s var(--courbe) var(--delai, 0ms);
+}
+
+/* ---------- Accueil ---------- */
+.semaine {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #26264a 0%, var(--couleur-carte) 65%);
+}
+
+.semaine__haut {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-12);
+}
+
+.semaine__titre {
+  font-size: var(--texte-sous-titre);
+}
+
+.semaine__compte {
+  font-size: var(--texte-titre-grand);
+  font-weight: var(--graisse-accent);
+  line-height: 1;
+}
+
+.semaine__barres {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: var(--esp-8);
+  margin-top: var(--esp-20);
+}
+
+.semaine__colonne {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-8);
+  min-width: 0;
+}
+
+.semaine__barre {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--rayon-pilule);
+  background: rgb(255 255 255 / 0.08);
+}
+
+.semaine__barre--pleine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-fort), var(--accent-clair));
+  transform-origin: left;
+  animation: remplir 0.7s var(--courbe) var(--delai, 0ms) both;
+}
+
+@keyframes remplir {
+  from { transform: scaleX(0); }
+}
+
+.semaine__etiquette {
+  min-height: 1.2em;
+  overflow: hidden;
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.semaine__texte {
+  margin-top: var(--esp-12);
+}
+
+/* Cartes de séance : pastille numérotée, lueur de couleur dans le coin */
+.seance {
+  grid-template-columns: auto 1fr auto;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 0.2s var(--courbe), background-color 0.2s;
+}
+
+.seance::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(120% 150% at 0% 0%, var(--accent), transparent 55%);
+  opacity: 0.16;
+}
+
+.seance:active {
+  transform: scale(0.98);
+}
+
+.pastille-seance {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent-degrade);
+  box-shadow: 0 8px 22px -8px var(--accent);
+  color: var(--couleur-sur-action);
+  font-size: var(--texte-grand);
+  font-weight: var(--graisse-accent);
+}
+
+.puce {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--esp-8);
+  padding: 1px var(--esp-8);
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon-pilule);
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte);
+  vertical-align: 1px;
+}
+
+.puce--en-cours::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-clair);
+  animation: pulsation 1.4s ease-in-out infinite;
+}
+
+@keyframes pulsation {
+  50% { opacity: 0.3; transform: scale(0.6); }
+}
+
+.seance__jauge {
+  display: block;
+  height: 4px;
+  margin-top: var(--esp-8);
+  overflow: hidden;
+  border-radius: var(--rayon-pilule);
+  background: rgb(255 255 255 / 0.08);
+}
+
+.seance__jauge span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-fort), var(--accent-clair));
+}
+
+/* Tuiles de navigation 2 × 2 */
+.tuiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--esp-12);
+}
+
+.tuile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 120px;
+  padding: var(--esp-20);
+  border: 0;
+  border-radius: var(--rayon-carte);
+  background: var(--couleur-carte);
+  color: var(--couleur-texte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.2s var(--courbe), background-color 0.2s;
+}
+
+.tuile:active {
+  transform: scale(0.97);
+  background: var(--couleur-controle);
+}
+
+.tuile__icone {
+  width: 40px;
+  height: 40px;
+  margin-bottom: auto;
+  padding: 9px;
+  border-radius: var(--rayon-carte);
+  background: linear-gradient(135deg, #4f63e8, #6a4fdc);
+  fill: none;
+  stroke: var(--couleur-sur-action);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tuile__nom {
+  margin-top: var(--esp-12);
+  font-weight: var(--graisse-accent);
+}
+
+.tuile__info {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+/* ---------- Séance ---------- */
+.exercice {
+  position: relative;
+}
+
+/* Exercice terminé : liseré et lueur de la couleur de la séance */
+.exercice::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid var(--accent);
+  border-radius: inherit;
+  box-shadow: inset 0 0 28px -14px var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s var(--courbe);
+}
+
+.exercice--termine::after {
+  opacity: 0.9;
+}
+
+.exercice__haut {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-12);
+}
+
+.exercice__compte {
+  flex: none;
+  padding: var(--esp-4) var(--esp-12);
+  border-radius: var(--rayon-pilule);
+  background: rgb(255 255 255 / 0.08);
+  font-size: var(--texte-petit);
+  font-variant-numeric: tabular-nums;
+  transition: background-color 0.3s;
+}
+
+.exercice--termine .exercice__compte {
+  background: var(--accent-degrade);
+  color: var(--couleur-sur-action);
+}
+
+/* Série cochée : les champs s'effacent un peu pour mettre en avant la suivante */
+.serie .champ {
+  transition: opacity 0.3s;
+}
+
+.serie--faite .champ {
+  opacity: 0.55;
+}
+
+.champ:focus {
+  background: #2e2e42;
+}
+
+.pop {
+  animation: pop 0.45s var(--courbe-rebond);
+}
+
+@keyframes pop {
+  0% { transform: scale(0.7); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+@keyframes respire {
+  50% { box-shadow: 0 0 0 6px rgb(255 255 255 / 0.08), 0 12px 40px -8px var(--accent); }
+}
+
+/* Programme : titre de carte avec pastille */
+.titre-avec-pastille {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-12);
+}
+
+.titre-avec-pastille .pastille-seance {
+  width: 36px;
+  height: 36px;
+  font-size: var(--texte-corps);
+}
+
+/* Confettis de fin de séance */
+.confettis {
+  position: fixed;
+  left: 50%;
+  top: 60%;
+  z-index: 50;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.confetti {
+  position: absolute;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* Réglage « Réduire les animations » du téléphone : tout devient immédiat */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
 }
