@@ -80,6 +80,7 @@ Données initiales à charger au premier lancement (mises à jour par Guillaume 
 - **Conseils locaux** (hors ligne, rien ne sort du téléphone) : charge à monter/garder/baisser (règle +2 kg polyarticulaire, +1 kg isolation quand le haut de fourchette est atteint partout ; baisse si sous le bas de fourchette deux séances de suite ; stagnation sur 3 séances), repos conseillé par exercice, équilibre du programme (séries par muscle, repère 10-20), exercices souvent sautés, records, régularité, astuce du jour. Dans la séance : repos + conseil avec bouton « Appliquer ».
 - **Discussion IA** : API Claude appelée depuis le navigateur (`fetch`, pas de SDK car ni dépendance ni build), modèle `claude-haiku-5-5` (choisi par Guillaume), effort `medium`. Envoie le prénom, le programme, les séances des 12 dernières semaines et les analyses locales. Conversation en ajout seul (consignes figées par discussion, blocs de réflexion renvoyés tels quels).
 - Clé API dans `suivi_sam_cle`, discussion dans `suivi_sam_discussion` : hors de `suivi_donnees`, donc jamais exportées.
+- **« Demander à Claude »** (action principale de l'écran Sam, choisie par Guillaume) : copie dans le presse-papiers les consignes de Sam + ses données, puis ouvre claude.ai. Guillaume colle et pose sa question avec son forfait Claude Pro : pas d'API, rien n'est envoyé par l'appli. Si la copie échoue, le texte s'affiche à copier à la main.
 
 ## Fonctionnalités — version 2 (plus tard, ne pas faire d'office)
 - Minuteur de repos entre les séries (60-120 s), avec vibration.

@@ -1414,6 +1414,38 @@ body.defile .barre__titre {
   color: var(--accent-clair);
 }
 
+/* « Demander à Claude » : étapes après la copie */
+.zone-claude {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-12);
+}
+
+.carte-claude {
+  border: 1px solid rgb(107 124 255 / 0.35);
+  animation: message-entree 0.45s var(--courbe-rebond);
+}
+
+.carte-claude .bouton {
+  width: 100%;
+  min-height: 56px;
+  margin-bottom: var(--esp-12);
+}
+
+.texte-copie {
+  width: 100%;
+  min-height: 160px;
+  margin-bottom: var(--esp-12);
+  padding: var(--esp-12);
+  border: 0;
+  border-radius: var(--rayon-carte);
+  background: var(--couleur-controle);
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: var(--texte-petit);
+  resize: vertical;
+}
+
 /* Discussion */
 .fil {
   display: flex;

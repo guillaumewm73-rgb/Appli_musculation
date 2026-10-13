@@ -2168,11 +2168,21 @@ function afficherSam() {
   blocs.push(carteSam('Régularité', creer('p', 'carte__texte', phrases.join(' '))));
   blocs.push(carteSam('Astuce du jour', creer('p', 'carte__texte', analyse.astuce)));
 
-  const discuter = creer('button', 'bouton bouton--principal', 'Discuter avec Sam');
+  const demander = creer('button', 'bouton bouton--principal', 'Demander à Claude');
+  demander.type = 'button';
+  demander.dataset.action = 'copier-claude';
+  const zoneClaude = creer('div', 'zone-claude');
+  zoneClaude.hidden = true;
+  const discuter = creer('button', 'bouton bouton--secondaire', 'Discuter dans l\'appli (API payante)');
   discuter.type = 'button';
   discuter.dataset.action = 'chat';
   const actions = creer('div', 'actions');
-  actions.append(discuter, creer('p', 'exercice__cible', 'Les conseils ci-dessus sont calculés sur ton téléphone, même sans réseau. La discussion utilise l\'IA en ligne.'));
+  actions.append(
+    demander,
+    zoneClaude,
+    discuter,
+    creer('p', 'exercice__cible', 'Les conseils ci-dessus sont calculés sur ton téléphone, même sans réseau. « Demander à Claude » copie tes données pour les coller dans l\'appli Claude, avec ton forfait Pro.'),
+  );
   blocs.push(actions);
 
   document.getElementById('ecran-sam').replaceChildren(...blocs);
@@ -2275,13 +2285,9 @@ function ligneHistoriqueSam(entree) {
   return [`${formaterDate(entree.id)} ${heureDepuisId(entree.id)} · ${nomSeance(entree.seanceId)}${duree ? ` · ${duree}` : ''}`, ...exercices].join('\n');
 }
 
-/**
- * Consignes et données envoyées à Sam. Figées pour toute une discussion :
- * modifier un message déjà envoyé invaliderait la réflexion du modèle (historique « en ajout seul »).
- */
-function construireSystemeSam() {
-  const aujourdHui = new Date();
-  const jour = aujourdHui.toLocaleDateString('fr-FR', { weekday: 'long' });
+/** Données de Guillaume pour Sam : programme, séances des 12 dernières semaines, analyses locales. */
+function donneesPourSam() {
+  const jour = new Date().toLocaleDateString('fr-FR', { weekday: 'long' });
   const programme = etat.donnees.programme.map((seance, s) => {
     const lignes = seance.exercices.filter(Boolean).map((ex) => {
       const depart = typeof ex.poidsDefaut === 'number' ? `, poids de départ ${formaterNombre(ex.poidsDefaut)} kg` : '';
@@ -2304,20 +2310,7 @@ function construireSystemeSam() {
     `- Cette semaine : ${analyse.regularite.semaine}/${analyse.regularite.objectif} séances`,
   ].join('\n');
 
-  return `Tu es Sam, le coach de musculation de Guillaume dans son appli « Suivi de séances ». Guillaume a 19 ans, il est en prise de masse et s'entraîne 4 fois par semaine en salle.
-
-Ton rôle : l'aider à progresser en sécurité. Tu le conseilles sur les charges (monter, garder, baisser), les temps de repos, le choix des exercices (ajouter, remplacer, retirer), l'équilibre du programme, la récupération, le sommeil et l'alimentation pour la prise de masse.
-
-Comment tu réponds :
-- En français, en le tutoyant, comme un coach bienveillant et direct.
-- Court et concret : 3 à 8 phrases ou une courte liste, sauf s'il demande plus de détails.
-- Appuie-toi sur ses données ci-dessous et cite les chiffres (charges, reps, dates au format JJ/MM/AAAA). Si une information manque, dis-le simplement.
-- Règle de progression de l'appli : quand toutes les séries d'un exercice atteignent le haut de la fourchette de reps, proposer +2 kg sur un polyarticulaire, +1 kg sur une isolation. C'est une suggestion, jamais une obligation.
-- Texte simple, sans mise en forme Markdown (pas d'astérisques, pas de #). Pour une liste, commence chaque ligne par « - ».
-- Santé : tu n'es pas médecin. En cas de douleur, de blessure, de malaise ou de question médicale, conseille d'arrêter l'exercice concerné et de consulter un professionnel de santé. Jamais de produits dopants, de régimes extrêmes ni de charges dangereuses.
-- Si la question n'a rien à voir avec l'entraînement, la récupération ou la nutrition sportive, ramène gentiment la discussion vers ses séances.
-
-<donnees date="${jour} ${formaterDate(idSeance(Date.now()))}">
+  return `<donnees date="${jour} ${formaterDate(idSeance(Date.now()))}">
 <programme>
 ${programme}
 </programme>
@@ -2328,6 +2321,95 @@ ${historique}
 ${conseils}
 </analyses_automatiques>
 </donnees>`;
+}
+
+/**
+ * Consignes de Sam. pourClaudeAi : texte collé par Guillaume lui-même dans l'appli Claude
+ * (Markdown autorisé, il s'adresse directement à Sam).
+ */
+function consignesSam(pourClaudeAi) {
+  const presentation = pourClaudeAi
+    ? 'Tu es Sam, mon coach de musculation. Je m\'appelle Guillaume, j\'ai 19 ans, je suis en prise de masse et je m\'entraîne 4 fois par semaine en salle. Mes données viennent de mon appli « Suivi de séances ».'
+    : 'Tu es Sam, le coach de musculation de Guillaume dans son appli « Suivi de séances ». Guillaume a 19 ans, il est en prise de masse et s\'entraîne 4 fois par semaine en salle.';
+  const format = pourClaudeAi
+    ? ''
+    : '\n- Texte simple, sans mise en forme Markdown (pas d\'astérisques, pas de #). Pour une liste, commence chaque ligne par « - ».';
+  return `${presentation}
+
+Ton rôle : l'aider à progresser en sécurité. Tu le conseilles sur les charges (monter, garder, baisser), les temps de repos, le choix des exercices (ajouter, remplacer, retirer), l'équilibre du programme, la récupération, le sommeil et l'alimentation pour la prise de masse.
+
+Comment tu réponds :
+- En français, en le tutoyant, comme un coach bienveillant et direct.
+- Court et concret : 3 à 8 phrases ou une courte liste, sauf s'il demande plus de détails.
+- Appuie-toi sur ses données et cite les chiffres (charges, reps, dates au format JJ/MM/AAAA). Si une information manque, dis-le simplement.
+- Règle de progression de l'appli : quand toutes les séries d'un exercice atteignent le haut de la fourchette de reps, proposer +2 kg sur un polyarticulaire, +1 kg sur une isolation. C'est une suggestion, jamais une obligation.${format}
+- Santé : tu n'es pas médecin. En cas de douleur, de blessure, de malaise ou de question médicale, conseille d'arrêter l'exercice concerné et de consulter un professionnel de santé. Jamais de produits dopants, de régimes extrêmes ni de charges dangereuses.
+- Si la question n'a rien à voir avec l'entraînement, la récupération ou la nutrition sportive, ramène gentiment la discussion vers ses séances.`;
+}
+
+/**
+ * Consignes et données envoyées à Sam (API). Figées pour toute une discussion :
+ * modifier un message déjà envoyé invaliderait la réflexion du modèle (historique « en ajout seul »).
+ */
+function construireSystemeSam() {
+  return `${consignesSam(false)}\n\n${donneesPourSam()}`;
+}
+
+/* ---------- Sam : « Demander à Claude » (copier-coller dans l'appli Claude, forfait Pro, sans API) ---------- */
+
+/** Texte à coller dans une nouvelle discussion Claude ; Guillaume écrit sa question à la fin. */
+function textePourClaude() {
+  return `${consignesSam(true)}\n\nVoici mes données :\n${donneesPourSam()}\n\nMa question : `;
+}
+
+/** Carte affichée après la copie : étapes, bouton « Ouvrir Claude », copie manuelle si besoin. */
+function creerCarteClaude(copie, texte) {
+  const carte = creer('article', 'carte carte-claude');
+  carte.setAttribute('role', 'status');
+  const etapes = creer('ol', 'etapes');
+  etapes.append(
+    creer('li', '', 'Touche « Ouvrir Claude » et démarre une nouvelle discussion.'),
+    creer('li', '', 'Appui long dans la zone de message, puis « Coller ».'),
+    creer('li', '', 'Écris ta question à la fin, après « Ma question : », et envoie.'),
+  );
+  carte.append(creer('h2', 'exercice__nom', copie ? 'Copié !' : 'Copie le texte ci-dessous'));
+  if (!copie) {
+    const zone = creer('textarea', 'texte-copie');
+    zone.readOnly = true;
+    zone.value = texte;
+    zone.setAttribute('aria-label', 'Texte à copier pour Claude');
+    carte.append(creer('p', 'carte__texte', 'La copie automatique n\'a pas marché : sélectionne tout le texte, puis « Copier ».'), zone);
+  }
+  const ouvrir = creer('a', 'bouton bouton--principal', 'Ouvrir Claude');
+  ouvrir.href = 'https://claude.ai/new';
+  ouvrir.target = '_blank';
+  ouvrir.rel = 'noopener';
+  carte.append(
+    etapes,
+    ouvrir,
+    creer('p', 'exercice__cible', `Données du ${formaterDate(idSeance(Date.now()))} à ${formaterHeure(Date.now())}. Elles passent par ton compte Claude, pas par l'appli. Après une nouvelle séance, recopie-les.`),
+  );
+  return carte;
+}
+
+/** Copie programme + séances + analyses pour l'appli Claude, puis affiche les étapes. */
+async function copierPourClaude(bouton) {
+  const zone = bouton.closest('.ecran').querySelector('.zone-claude');
+  const texte = textePourClaude();
+  let copie = false;
+  try {
+    await navigator.clipboard.writeText(texte);
+    copie = true;
+  } catch {
+    copie = false; // presse-papiers indisponible : copie manuelle
+  }
+  zone.replaceChildren(creerCarteClaude(copie, texte));
+  zone.hidden = false;
+  bouton.textContent = 'Copier à nouveau';
+  bouton.classList.replace('bouton--principal', 'bouton--secondaire');
+  if (copie) vibrer();
+  else zone.querySelector('textarea').select();
+  zone.scrollIntoView({ block: 'nearest', behavior: mouvementReduit.matches ? 'auto' : 'smooth' });
 }
 
 /** Texte lisible d'une réponse : blocs « text » uniquement, mise en forme Markdown retirée. */
@@ -2403,7 +2485,7 @@ function creerBulleAttente() {
   return bulle;
 }
 
-/** Carte de configuration : coller sa clé API. */
+/** Cartes de configuration : coller sa clé API, ou passer par l'abonnement Claude. */
 function creerCarteCleSam() {
   const carte = creer('article', 'carte');
   const etapes = creer('ol', 'etapes');
@@ -2448,7 +2530,21 @@ function creerCarteCleSam() {
     creer('p', 'exercice__cible', 'Ta clé reste sur ce téléphone, jamais dans tes sauvegardes. Quand tu poses une question, ton prénom, ton programme et tes séances des 12 dernières semaines sont envoyés à Anthropic pour que Sam réponde. Rien n\'est envoyé tant que tu ne poses pas de question.'),
     formulaire,
   );
-  return carte;
+
+  const demander = creer('button', 'bouton bouton--secondaire', 'Demander à Claude');
+  demander.type = 'button';
+  demander.dataset.action = 'copier-claude';
+  const zoneClaude = creer('div', 'zone-claude');
+  zoneClaude.hidden = true;
+  const sansCle = creer('article', 'carte');
+  sansCle.append(
+    creer('h2', 'exercice__nom', 'Pas de clé API ?'),
+    creer('p', 'carte__texte', 'Utilise ton abonnement Claude : l\'appli copie tes données, tu les colles dans l\'appli Claude et tu poses ta question. Gratuit avec ton forfait.'),
+    demander,
+  );
+  const ensemble = document.createDocumentFragment();
+  ensemble.append(carte, sansCle, zoneClaude);
+  return ensemble;
 }
 
 /** Écran de discussion avec Sam. */
@@ -2689,6 +2785,11 @@ document.getElementById('bouton-sam').addEventListener('click', () => {
 });
 
 document.getElementById('ecran-sam').addEventListener('click', (evenement) => {
+  const copier = evenement.target.closest('[data-action="copier-claude"]');
+  if (copier) {
+    copierPourClaude(copier);
+    return;
+  }
   if (evenement.target.closest('[data-action="chat"]')) {
     afficherMessage('');
     afficherChat();
@@ -2702,6 +2803,11 @@ ecranChat.addEventListener('submit', (evenement) => {
   else envoyerQuestion(document.getElementById('question-sam').value);
 });
 ecranChat.addEventListener('click', (evenement) => {
+  const copier = evenement.target.closest('[data-action="copier-claude"]');
+  if (copier) {
+    copierPourClaude(copier);
+    return;
+  }
   const suggestion = evenement.target.closest('[data-question]');
   const action = evenement.target.closest('[data-action]');
   if (suggestion) envoyerQuestion(suggestion.dataset.question);
