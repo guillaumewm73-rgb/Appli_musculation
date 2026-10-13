@@ -1,7 +1,8 @@
 /* Suivi de séances — logique de l'appli.
    Étape 1 : service worker (hors ligne + installation).
    Étape 2 : programme de départ + écran d'accueil.
-   Étape 3 : écran de séance (saisie, cases à cocher, enregistrement). */
+   Étape 3 : écran de séance (saisie, cases à cocher, enregistrement).
+   Étape 4 : historique (liste, détail, suppression). */
 'use strict';
 
 /* ---------- Programme de départ ---------- */
@@ -286,10 +287,11 @@ function seanceEnCoursValide(e) {
     && e.exercices.every((ex) => ex && Array.isArray(ex.series) && ex.series.every((s) => s && typeof s === 'object'));
 }
 
-function compterSeries(enCours) {
+/** Séries faites et total d'une séance (en cours ou de l'historique). */
+function compterSeries(seance) {
   let faites = 0;
   let total = 0;
-  for (const ex of enCours.exercices) {
+  for (const ex of seance.exercices) {
     for (const s of ex.series) {
       total++;
       if (s.fait) faites++;
@@ -308,11 +310,15 @@ function enregistrer() {
 
 /* ---------- Écrans ---------- */
 
+const ECRANS = ['accueil', 'seance', 'historique', 'detail'];
+
 /** Affiche un écran : titre, bouton retour, focus pour les lecteurs d'écran. */
-function montrerEcran(nom, titre) {
-  document.getElementById('ecran-accueil').hidden = nom !== 'accueil';
-  document.getElementById('ecran-seance').hidden = nom !== 'seance';
-  document.getElementById('bouton-retour').hidden = nom === 'accueil';
+function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil') {
+  for (const ecran of ECRANS) document.getElementById(`ecran-${ecran}`).hidden = ecran !== nom;
+  const retour = document.getElementById('bouton-retour');
+  retour.hidden = nom === 'accueil';
+  retour.setAttribute('aria-label', libelleRetour);
+  etat.ecran = nom;
   const h1 = document.getElementById('titre-ecran');
   h1.textContent = titre;
   window.scrollTo(0, 0);
@@ -331,16 +337,21 @@ function creerBoutonSeance(seance, numero) {
     quand = date ? `Dernière fois : ${formaterDate(date)}` : 'Pas encore faite';
   }
 
+  const bouton = creerBoutonCarte(`Séance ${numero}`, seance.nom, `${nbExercices} exercice${nbExercices > 1 ? 's' : ''} · ${quand}`);
+  bouton.dataset.seance = seance.id;
+  return bouton;
+}
+
+/** Carte cliquable à trois lignes (petit texte, nom, infos) avec flèche. */
+function creerBoutonCarte(haut, nom, infos) {
   const textes = creer('span', 'seance__textes');
   textes.append(
-    creer('span', 'seance__numero', `Séance ${numero}`),
-    creer('span', 'seance__nom', seance.nom),
-    creer('span', 'seance__infos', `${nbExercices} exercice${nbExercices > 1 ? 's' : ''} · ${quand}`),
+    creer('span', 'seance__numero', haut),
+    creer('span', 'seance__nom', nom),
+    creer('span', 'seance__infos', infos),
   );
-
   const bouton = creer('button', 'seance');
   bouton.type = 'button';
-  bouton.dataset.seance = seance.id;
   bouton.append(textes);
   bouton.insertAdjacentHTML('beforeend', ICONE_FLECHE);
   return bouton;
@@ -568,6 +579,142 @@ function retourAccueil() {
   afficherAccueil();
 }
 
+/* ---------- Historique ---------- */
+
+/** Nom d'une séance du programme, ou repli si elle a été retirée. */
+function nomSeance(seanceId) {
+  const seance = trouverSeance(seanceId);
+  return seance ? seance.nom : 'Séance retirée du programme';
+}
+
+/** Cherche un exercice dans tout le programme (identifiants uniques). */
+function trouverExerciceDansProgramme(exerciceId) {
+  for (const seance of etat.donnees.programme) {
+    const exercice = trouverExercice(seance, exerciceId);
+    if (exercice) return exercice;
+  }
+  return undefined;
+}
+
+/** "2026-10-13T18:30" → "18:30" (vide si format inconnu). */
+function heureDepuisId(id) {
+  const morceaux = /T(\d{2}:\d{2})/.exec(String(id));
+  return morceaux ? morceaux[1] : '';
+}
+
+/** Entrées lisibles de l'historique, la plus récente en premier. */
+function entreesHistorique() {
+  return etat.donnees.historique
+    .filter((e) => e && typeof e.id === 'string' && Array.isArray(e.exercices)
+      && e.exercices.every((ex) => ex && Array.isArray(ex.series) && ex.series.every((s) => s && typeof s === 'object')))
+    .sort((a, b) => (a.id < b.id ? 1 : -1));
+}
+
+function texteDuree(entree) {
+  return Number.isFinite(entree.dureeMin) ? `${entree.dureeMin} min` : '';
+}
+
+/** Écran Historique : une carte par séance passée. */
+function afficherHistorique() {
+  const entrees = entreesHistorique();
+  const ecran = document.getElementById('ecran-historique');
+  if (!entrees.length) {
+    ecran.replaceChildren(creer('p', 'texte-secondaire', 'Aucune séance enregistrée pour l\'instant.'));
+  } else {
+    const liste = creer('ul', 'liste-seances');
+    liste.setAttribute('aria-label', 'Séances passées');
+    liste.append(...entrees.map((entree) => {
+      const { faites, total } = compterSeries(entree);
+      const heure = heureDepuisId(entree.id);
+      const infos = [texteDuree(entree), `${faites}/${total} série${total > 1 ? 's' : ''}`].filter(Boolean).join(' · ');
+      const bouton = creerBoutonCarte(`${formaterDate(entree.id)}${heure ? ` · ${heure}` : ''}`, nomSeance(entree.seanceId), infos);
+      bouton.dataset.entree = entree.id;
+      const item = document.createElement('li');
+      item.append(bouton);
+      return item;
+    }));
+    ecran.replaceChildren(liste);
+  }
+  montrerEcran('historique', 'Historique');
+}
+
+/** « 60 kg × 10 reps », « PDC + 10 kg × 8 reps », « PDC × 45 s ». */
+function texteSerie(exercice, serie) {
+  const poids = typeof serie.poids === 'number' ? `${formaterNombre(serie.poids)} kg` : '';
+  const charge = exercice.poidsDuCorps ? (poids ? `PDC + ${poids}` : 'PDC') : (poids || '– kg');
+  const unite = exercice.unite === 's' ? 's' : 'reps';
+  const reps = typeof serie.reps === 'number' ? `${serie.reps} ${unite}` : `– ${unite}`;
+  return `${charge} × ${reps}`;
+}
+
+/** Carte d'un exercice passé : une ligne par série. */
+function creerCarteDetail(exHistorique) {
+  const exercice = trouverExerciceDansProgramme(exHistorique.exerciceId)
+    || { nom: 'Exercice retiré du programme', unite: 'reps', poidsDuCorps: false };
+  const liste = creer('ol', 'detail-series');
+  liste.append(...exHistorique.series.map((serie, j) => {
+    const ligne = creer('li', serie.fait ? 'detail-serie' : 'detail-serie detail-serie--non-faite');
+    ligne.append(
+      creer('span', 'serie__numero', String(j + 1)),
+      creer('span', '', texteSerie(exercice, serie)),
+      creer('span', 'detail-serie__etat', serie.fait ? '' : 'non faite'),
+    );
+    return ligne;
+  }));
+  const carte = creer('article', 'carte');
+  carte.append(creer('h2', 'exercice__nom', exercice.nom), liste);
+  return carte;
+}
+
+/** Détail d'une séance passée, avec le bouton Supprimer. */
+function afficherDetail(entreeId) {
+  const entree = entreesHistorique().find((e) => e.id === entreeId);
+  if (!entree) {
+    afficherHistorique();
+    return;
+  }
+  const heure = heureDepuisId(entree.id);
+  const duree = texteDuree(entree);
+  const info = creer('p', 'texte-secondaire', `${formaterDate(entree.id)}${heure ? ` à ${heure}` : ''}${duree ? ` · ${duree}` : ''}`);
+
+  const supprimer = creer('button', 'bouton bouton--secondaire', 'Supprimer cette séance');
+  supprimer.type = 'button';
+  supprimer.dataset.supprimer = entree.id;
+  const actions = creer('div', 'actions');
+  actions.append(supprimer);
+
+  document.getElementById('ecran-detail').replaceChildren(info, ...entree.exercices.map(creerCarteDetail), actions);
+  montrerEcran('detail', nomSeance(entree.seanceId), 'Retour à l\'historique');
+}
+
+/** Supprime une séance passée après confirmation. */
+function supprimerEntree(entreeId) {
+  const { historique } = etat.donnees;
+  const index = historique.findIndex((e) => e && e.id === entreeId);
+  if (index < 0) return;
+  const entree = historique[index];
+  if (!confirm(`Supprimer la séance ${nomSeance(entree.seanceId)} du ${formaterDate(entree.id)} ? C'est définitif.`)) return;
+
+  historique.splice(index, 1);
+  if (etat.enregistrable && !ecrireDonnees(etat.donnees)) {
+    historique.splice(index, 0, entree); // rien n'a changé
+    alert('Stockage de l\'appli plein : suppression impossible.');
+    return;
+  }
+  afficherHistorique();
+  afficherMessage(etat.enregistrable
+    ? `Séance du ${formaterDate(entree.id)} supprimée.`
+    : `Séance du ${formaterDate(entree.id)} supprimée de l'écran, mais pas du stockage (indisponible).`);
+}
+
+/** Bouton retour de la barre du haut : dépend de l'écran affiché. */
+function retour() {
+  afficherMessage('');
+  if (etat.ecran === 'seance') retourAccueil();
+  else if (etat.ecran === 'detail') afficherHistorique();
+  else afficherAccueil();
+}
+
 /* ---------- Service worker ---------- */
 
 const statutHorsLigne = document.getElementById('statut-hors-ligne');
@@ -603,7 +750,22 @@ document.getElementById('liste-seances').addEventListener('click', (evenement) =
   if (bouton) ouvrirSeance(bouton.dataset.seance);
 });
 
-document.getElementById('bouton-retour').addEventListener('click', retourAccueil);
+document.getElementById('bouton-retour').addEventListener('click', retour);
+
+document.getElementById('bouton-historique').addEventListener('click', () => {
+  afficherMessage('');
+  afficherHistorique();
+});
+
+document.getElementById('ecran-historique').addEventListener('click', (evenement) => {
+  const bouton = evenement.target.closest('[data-entree]');
+  if (bouton) afficherDetail(bouton.dataset.entree);
+});
+
+document.getElementById('ecran-detail').addEventListener('click', (evenement) => {
+  const bouton = evenement.target.closest('[data-supprimer]');
+  if (bouton) supprimerEntree(bouton.dataset.supprimer);
+});
 
 const ecranSeance = document.getElementById('ecran-seance');
 ecranSeance.addEventListener('input', (evenement) => {
