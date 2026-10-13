@@ -21,7 +21,7 @@ Le projet doit rester simple, rapide à ouvrir et utilisable sans connexion.
 - Code lisible, commenté en français quand c'est utile. Fonctions courtes.
 
 ## Style visuel
-Suivre `DESIGN.md` : base Mercury (fond onyx, cartes graphite, texte ivoire, contrôles en pilule) + v2 demandée par Guillaume : une couleur par séance, halo coloré, animations et effets au défilement (désactivés si « Réduire les animations »). Une seule action principale par écran. Les jetons sont en tête de `style.css`.
+Suivre `DESIGN.md` : base Mercury (fond onyx, cartes graphite, texte ivoire, contrôles en pilule) + v2 demandée par Guillaume : une couleur par séance, halo coloré, animations et effets au défilement (désactivés si « Réduire les animations ») + v3 : transitions entre écrans, anneau de la semaine, or réservé aux records, bilan de séance animé. Une seule action principale par écran. Les jetons sont en tête de `style.css`.
 
 ## Programme de départ
 Données initiales à charger au premier lancement (mises à jour par Guillaume le 13/10/2026). Les poids sont ceux de ses dernières séances ; ils sont modifiables dans l'appli. Un champ vide signifie : je saisis moi-même. Dans l'appli, Programme → « Remettre le programme de départ » recharge ce programme en gardant l'historique.
@@ -88,6 +88,14 @@ Données initiales à charger au premier lancement (mises à jour par Guillaume 
 - **Progression** : choix de la mesure (meilleur poids, 1RM estimé par Epley, volume) + **carte du corps** (séries faites depuis lundi par muscle, une seule teinte en 4 niveaux, liste chiffrée).
 - **Mon corps** : poids de corps (une pesée par jour), courbe, rythme sur 4 semaines et conseil de Sam (repère prise de masse : +0,25 à +0,5 kg/semaine).
 - Décision de données (validée par Guillaume) : `poidsCorps` = liste `{ date: "AAAA-MM-JJ", poids }` dans `suivi_donnees`, incluse dans l'export et vérifiée à l'import.
+
+## Refonte visuelle v3 (13/10/2026, demandée par Guillaume)
+Analyse du style des applis de référence (détail dans `DESIGN.md`), puis :
+- **Accueil** : anneau de la semaine (un segment par séance, à sa couleur) + séries, volume et minutes depuis lundi, chiffres animés ; contour lumineux autour de la prochaine séance.
+- **Transitions** entre écrans (glissé-fondu, sens avant/arrière) ; onde au toucher, effets au défilement.
+- **Records en direct** : une série cochée qui bat la meilleure charge (ou le 1RM estimé, ou les reps au poids du corps) de l'historique devient dorée, avec bandeau « Nouveau record ! » et vibration. Pas de record la première fois qu'on fait un exercice.
+- **Bilan de fin de séance** (remplace le simple message) : anneau des séries faites, durée, volume, séries, records, comparaison du volume avec la fois d'avant, confettis.
+- Aucune donnée nouvelle : records et bilan sont calculés depuis l'historique.
 
 ## Fonctionnalités — version 2 (plus tard, ne pas faire d'office)
 - Notes par séance (fatigue, sommeil, douleurs).

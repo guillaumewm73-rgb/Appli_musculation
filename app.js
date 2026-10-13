@@ -164,7 +164,8 @@ function chargerDonnees() {
 const ICONE_FLECHE = '<svg class="seance__fleche" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICONE_HAUT = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICONE_BAS = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const ICONE_COCHE = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICONE_TROPHEE = '<svg class="icone-trophee" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 4h10v5a5 5 0 0 1-10 0V4z M7 6H4.5v1.5A3 3 0 0 0 7.5 10.5 M17 6h2.5v1.5a3 3 0 0 1-3 3 M12 14v3.5 M8.5 20h7 M9.5 17.5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICONE_COCHE ='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** "2026-10-13T18:30" → "13/10/2026" (chaîne vide si format inconnu). */
 function formaterDate(iso) {
@@ -286,7 +287,7 @@ const observateur = 'IntersectionObserver' in window
 function animerApparitions(conteneur) {
   if (!observateur || mouvementReduit.matches) return;
   debutApparitions = performance.now();
-  const elements = conteneur.querySelectorAll('.carte, .carte-sam, .sam-entete, .liste-seances > li, .tuile, .titre-section, .actions');
+  const elements = conteneur.querySelectorAll('.carte, .carte-sam, .sam-entete, .liste-seances > li, .tuile, .titre-section, .stats--bilan > .stat, .actions');
   elements.forEach((el, i) => {
     el.classList.add('apparition');
     el.style.setProperty('--delai', `${Math.min(i, 7) * 55}ms`);
@@ -317,6 +318,118 @@ function lancerConfettis(classeTeinte) {
   }
   document.body.append(conteneur);
   setTimeout(() => conteneur.remove(), 2400);
+}
+
+/** Petite gerbe dorée autour d'un point (record battu). */
+function eclatDore(x, y) {
+  if (mouvementReduit.matches || !Element.prototype.animate) return;
+  const conteneur = creer('div', 'eclat');
+  conteneur.setAttribute('aria-hidden', 'true');
+  conteneur.style.left = `${x}px`;
+  conteneur.style.top = `${y}px`;
+  for (let i = 0; i < 20; i++) {
+    const particule = creer('span', 'eclat__particule');
+    const angle = (i / 20) * Math.PI * 2 + Math.random() * 0.3;
+    const distance = 38 + Math.random() * 34;
+    particule.animate([
+      { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+      { transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px) scale(0.2)`, opacity: 0 },
+    ], { duration: 650 + Math.random() * 250, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
+    conteneur.append(particule);
+  }
+  document.body.append(conteneur);
+  setTimeout(() => conteneur.remove(), 1000);
+}
+
+/** Fait monter un nombre de 0 à sa valeur (compteurs animés). */
+function compterJusqua(el, valeur, formater) {
+  el.textContent = formater(valeur);
+  if (mouvementReduit.matches || !Number.isFinite(valeur) || valeur === 0) return;
+  const debut = performance.now();
+  const duree = 1000;
+  el.textContent = formater(0);
+  const etape = (maintenant) => {
+    const avance = Math.min(1, (maintenant - debut) / duree);
+    el.textContent = formater(valeur * (1 - (1 - avance) ** 3)); // ralentit à l'arrivée
+    if (avance < 1) requestAnimationFrame(etape);
+  };
+  requestAnimationFrame(etape);
+}
+
+const entier = (v) => String(Math.round(v));
+const dixieme = (v) => formaterNombre(Math.round(v * 10) / 10);
+
+/** Grand chiffre animé avec unité et légende ; les lecteurs d'écran lisent la phrase complète. */
+function creerStat(valeur, formater, unite, legende) {
+  const chiffre = creer('span', 'stat__chiffre');
+  compterJusqua(chiffre, valeur, formater);
+  const ligne = creer('span', 'stat__ligne');
+  ligne.setAttribute('aria-hidden', 'true');
+  ligne.append(chiffre);
+  if (unite) ligne.append(creer('span', 'stat__unite', unite));
+  const bas = creer('span', 'stat__legende', legende);
+  bas.setAttribute('aria-hidden', 'true');
+  const stat = creer('div', 'stat');
+  stat.append(ligne, bas, creer('span', 'visuellement-cache', `${legende} : ${formater(valeur)}${unite ? ` ${unite}` : ''}.`));
+  return stat;
+}
+
+/** Volume en kg ou en tonnes au-delà de 1000 kg : [valeur, format, unité]. */
+function volumeAffiche(kg) {
+  return kg >= 1000 ? [kg / 1000, dixieme, 't'] : [kg, entier, 'kg'];
+}
+
+/** Arc de cercle SVG (degrés, 0 = en haut, sens des aiguilles d'une montre). */
+function cheminArc(cx, cy, r, debut, fin) {
+  const point = (angle) => {
+    const radians = ((angle - 90) * Math.PI) / 180;
+    return `${(cx + r * Math.cos(radians)).toFixed(2)} ${(cy + r * Math.sin(radians)).toFixed(2)}`;
+  };
+  return `M ${point(debut)} A ${r} ${r} 0 ${fin - debut > 180 ? 1 : 0} 1 ${point(fin)}`;
+}
+
+/**
+ * Anneau découpé en segments (style anneaux d'activité).
+ * segments : [{ teinte: 'teinte-1', part: 0 à 1 }] ; part 0 = piste vide.
+ */
+function creerAnneau(segments, classe = '') {
+  const svg = creerSvg('svg', { viewBox: '0 0 120 120', 'aria-hidden': 'true', focusable: 'false' }, `anneau ${classe}`);
+  const n = segments.length;
+  const ecart = n > 1 ? 22 : 0; // degrés entre deux segments (les bouts arrondis en mangent une partie)
+  segments.forEach((segment, i) => {
+    const debut = (360 / n) * i + ecart / 2;
+    const fin = n > 1 ? (360 / n) * (i + 1) - ecart / 2 : 359.99;
+    const d = cheminArc(60, 60, 50, debut, fin);
+    svg.append(creerSvg('path', { d }, 'anneau__piste'));
+    if (segment.part > 0) {
+      const arc = creerSvg('path', { d, pathLength: '100' }, `anneau__arc ${segment.teinte}`);
+      arc.style.strokeDashoffset = String(100 - Math.min(1, segment.part) * 100);
+      arc.style.setProperty('--delai', `${200 + i * 170}ms`);
+      svg.append(arc);
+    }
+  });
+  return svg;
+}
+
+/** Bandeau doré « Nouveau record » en haut de l'écran (annoncé aux lecteurs d'écran). */
+function annoncerRecord(texte) {
+  let bandeau = document.getElementById('bandeau-record');
+  if (!bandeau) {
+    bandeau = creer('div', 'bandeau-record');
+    bandeau.id = 'bandeau-record';
+    bandeau.setAttribute('role', 'status');
+    document.body.append(bandeau);
+  }
+  bandeau.replaceChildren();
+  bandeau.insertAdjacentHTML('beforeend', ICONE_TROPHEE);
+  const textes = creer('span', 'bandeau-record__textes');
+  textes.append(creer('span', 'bandeau-record__titre', 'Nouveau record !'), creer('span', 'bandeau-record__detail', texte));
+  bandeau.append(textes);
+  bandeau.classList.remove('bandeau-record--visible');
+  void bandeau.offsetWidth; // relance l'animation
+  bandeau.classList.add('bandeau-record--visible');
+  clearTimeout(annoncerRecord.minuterie);
+  annoncerRecord.minuterie = setTimeout(() => bandeau.classList.remove('bandeau-record--visible'), 3200);
 }
 
 /* ---------- Séance en cours ---------- */
@@ -392,35 +505,109 @@ function enregistrer() {
   return false;
 }
 
+/* ---------- Records (calculés depuis l'historique, rien de plus n'est stocké) ---------- */
+
+/** Ajoute une série faite aux meilleures marques { poids, rm, reps }. */
+function ajouterMarque(marques, s) {
+  if (!s || !s.fait || !(s.reps > 0)) return marques;
+  const poids = s.poids > 0 ? s.poids : 0;
+  const m = marques || { poids: 0, rm: 0, reps: 0 };
+  return { poids: Math.max(m.poids, poids), rm: Math.max(m.rm, unRmEstime(poids, s.reps)), reps: Math.max(m.reps, s.reps) };
+}
+
+/** Meilleures marques d'un exercice dans l'historique (sauf une séance) ; null s'il n'a jamais été fait. */
+function meilleuresMarques(exerciceId, idExclu = null) {
+  let marques = null;
+  for (const entree of etat.donnees.historique) {
+    if (!entree || entree.id === idExclu || !Array.isArray(entree.exercices)) continue;
+    for (const ex of entree.exercices) {
+      if (!ex || ex.exerciceId !== exerciceId || !Array.isArray(ex.series)) continue;
+      for (const s of ex.series) marques = ajouterMarque(marques, s);
+    }
+  }
+  return marques;
+}
+
+/** Texte du record battu par une série (« 62,5 kg », « 1RM estimé 78 kg », « 12 reps »), ou ''. */
+function texteRecord(exercice, marques, s) {
+  if (!marques || !s || !s.fait || !(s.reps > 0)) return '';
+  const poids = s.poids > 0 ? s.poids : 0;
+  if (poids > marques.poids) return `${formaterNombre(poids)} kg`;
+  if (!exercice || exercice.poidsDuCorps || exercice.unite === 's') {
+    const unite = exercice && exercice.unite === 's' ? 's' : 'reps';
+    return s.reps > marques.reps && poids >= marques.poids ? `${s.reps} ${unite}` : '';
+  }
+  const rm = unRmEstime(poids, s.reps);
+  return poids > 0 && rm > marques.rm + 0.05 ? `1RM estimé ${Math.round(rm)} kg` : '';
+}
+
+/**
+ * Records d'une liste de séries, dans l'ordre : chaque série est comparée à l'historique
+ * et aux séries d'avant. Pas de record la toute première fois qu'on fait l'exercice.
+ */
+function recordsSeries(series, exercice, marquesAvant) {
+  let marques = marquesAvant;
+  return series.map((s) => {
+    const texte = texteRecord(exercice, marques, s);
+    if (marques) marques = ajouterMarque(marques, s);
+    return texte;
+  });
+}
+
 /* ---------- Écrans ---------- */
 
-const ECRANS = ['accueil', 'seance', 'historique', 'detail', 'progression', 'programme', 'exercice', 'sauvegarde', 'sam', 'chat', 'corps'];
+const ECRANS = ['accueil', 'seance', 'bilan', 'historique', 'detail', 'progression', 'programme', 'exercice', 'sauvegarde', 'sam', 'chat', 'corps'];
 
 /**
  * Affiche un écran : titre, bouton retour, couleur de fond (séance), animations,
  * focus pour les lecteurs d'écran.
  */
-function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil', classeTeinte = '') {
-  for (const ecran of ECRANS) document.getElementById(`ecran-${ecran}`).hidden = ecran !== nom;
-  const retour = document.getElementById('bouton-retour');
-  retour.hidden = nom === 'accueil';
-  retour.setAttribute('aria-label', libelleRetour);
+function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil', classeTeinte = '', apres = null) {
+  const memeEcran = nom === etat.ecran;
   etat.ecran = nom;
-  document.body.classList.remove(...TEINTES);
-  if (classeTeinte) document.body.classList.add(classeTeinte);
-  const enSeance = nom === 'seance';
-  garderEcranAllume(Boolean(etat.donnees.enCours));
-  document.getElementById('compteur-seance').hidden = !enSeance;
-  document.getElementById('avancement-seance').hidden = !enSeance;
+  const appliquer = () => {
+    for (const ecran of ECRANS) document.getElementById(`ecran-${ecran}`).hidden = ecran !== nom;
+    const retour = document.getElementById('bouton-retour');
+    retour.hidden = nom === 'accueil';
+    retour.setAttribute('aria-label', libelleRetour);
+    document.body.classList.remove(...TEINTES);
+    if (classeTeinte) document.body.classList.add(classeTeinte);
+    const enSeance = nom === 'seance';
+    if (!enSeance) document.getElementById('bandeau-record')?.classList.remove('bandeau-record--visible');
+    garderEcranAllume(Boolean(etat.donnees.enCours));
+    document.getElementById('compteur-seance').hidden = !enSeance;
+    document.getElementById('avancement-seance').hidden = !enSeance;
 
-  const h1 = document.getElementById('titre-ecran');
-  h1.textContent = titre;
-  h1.classList.remove('titre--entree');
-  void h1.offsetWidth; // relance l'animation du titre
-  h1.classList.add('titre--entree');
-  window.scrollTo(0, 0);
-  h1.focus({ preventScroll: true });
-  animerApparitions(document.getElementById(`ecran-${nom}`));
+    const h1 = document.getElementById('titre-ecran');
+    h1.textContent = titre;
+    h1.classList.remove('titre--entree');
+    void h1.offsetWidth; // relance l'animation du titre
+    h1.classList.add('titre--entree');
+    window.scrollTo(0, 0);
+    h1.focus({ preventScroll: true });
+    animerApparitions(document.getElementById(`ecran-${nom}`));
+    if (apres) apres(); // ce qui a besoin de l'écran visible (largeur d'une courbe…)
+  };
+  if (memeEcran) appliquer();
+  else transitionEcran(appliquer);
+}
+
+/* ---------- Transitions entre écrans ---------- */
+
+let sensTransition = 'avant'; // « arriere » quand on revient en arrière : la page glisse dans l'autre sens
+let transitionsActives = false; // pas de transition au tout premier affichage
+
+/** Change d'écran en glissé-fondu (View Transitions) ; changement immédiat si le navigateur ne sait pas faire. */
+function transitionEcran(appliquer) {
+  const sens = sensTransition;
+  sensTransition = 'avant';
+  if (!transitionsActives || !document.startViewTransition || mouvementReduit.matches || document.visibilityState !== 'visible') {
+    appliquer();
+    return;
+  }
+  document.documentElement.dataset.sens = sens;
+  const transition = document.startViewTransition(appliquer);
+  transition.ready.catch(() => {}); // transition sautée (onglet caché…) : l'écran change quand même
 }
 
 /** Bouton-carte d'une séance pour l'écran d'accueil. */
@@ -449,6 +636,7 @@ function creerBoutonSeance(seance, numero, prochaine) {
     bouton.querySelector('.seance__textes').append(jauge);
   } else if (prochaine) {
     bouton.querySelector('.seance__numero').append(creer('span', 'puce', 'Prochaine'));
+    bouton.classList.add('seance--prochaine'); // contour lumineux qui tourne
   }
   return bouton;
 }
@@ -478,40 +666,83 @@ function debutSemaine() {
   return lundi.getTime();
 }
 
-/** Carte « Cette semaine » : une barre colorée par séance faite depuis lundi. */
+/** Séries faites, volume (kg) et minutes d'une liste de séances passées. */
+function totauxSeances(entrees) {
+  let series = 0;
+  let volume = 0;
+  let minutes = 0;
+  for (const entree of entrees) {
+    if (Number.isFinite(entree.dureeMin)) minutes += entree.dureeMin;
+    volume += volumeEntree(entree);
+    series += compterSeries(entree).faites;
+  }
+  return { series, volume, minutes };
+}
+
+/** Volume soulevé d'une séance : somme poids × reps des séries faites (lest seul au poids du corps). */
+function volumeEntree(entree) {
+  let volume = 0;
+  for (const ex of entree.exercices) {
+    for (const s of ex.series) {
+      if (s.fait && s.poids > 0 && s.reps > 0) volume += s.poids * s.reps;
+    }
+  }
+  return volume;
+}
+
+/** Carte « Cette semaine » : anneau à un segment par séance prévue, chiffres de la semaine. */
 function remplirSemaine() {
   const debut = debutSemaine();
   const faites = entreesHistorique().filter((e) => tempsDepuisId(e.id) >= debut).reverse();
   const objectif = Math.max(1, etat.donnees.programme.length);
   const reste = objectif - faites.length;
 
-  const haut = creer('div', 'semaine__haut');
+  // Anneau : chaque séance faite remplit un segment, à sa couleur
+  const segments = Array.from({ length: Math.max(objectif, faites.length) }, (_, i) => (
+    faites[i] ? { teinte: teinte(faites[i].seanceId), part: 1 } : { teinte: '', part: 0 }));
+  const centre = creer('span', 'anneau__centre');
+  centre.setAttribute('aria-hidden', 'true');
+  const nombre = creer('span', 'anneau__nombre');
+  compterJusqua(nombre, faites.length, entier);
+  centre.append(nombre, creer('span', 'anneau__sur', `sur ${objectif}`));
+  const visuel = creer('div', 'anneau-bloc');
+  visuel.append(creerAnneau(segments), centre);
+
   const titre = creer('h2', 'semaine__titre', 'Cette semaine');
   titre.id = 'titre-semaine';
-  const compte = creer('span', 'semaine__compte', `${faites.length}/${objectif}`);
-  compte.setAttribute('aria-label', `${faites.length} séance${faites.length > 1 ? 's' : ''} sur ${objectif}`);
-  haut.append(titre, compte);
-
-  const barres = creer('div', 'semaine__barres');
-  barres.setAttribute('aria-hidden', 'true');
-  for (let i = 0; i < Math.max(objectif, faites.length); i++) {
-    const entree = faites[i];
-    const colonne = creer('span', `semaine__colonne${entree ? ` ${teinte(entree.seanceId)}` : ''}`);
-    const barre = creer('span', `semaine__barre${entree ? ' semaine__barre--pleine' : ''}`);
-    barre.style.setProperty('--delai', `${150 + i * 110}ms`);
-    colonne.append(barre, creer('span', 'semaine__etiquette', entree ? nomSeance(entree.seanceId) : ''));
-    barres.append(colonne);
-  }
-
   let texte;
   if (faites.length === 0) texte = 'Nouvelle semaine : c\'est parti.';
   else if (reste > 0) texte = `Encore ${reste} séance${reste > 1 ? 's' : ''} pour boucler la semaine.`;
   else texte = 'Semaine bouclée. Bravo !';
-  const resume = faites.length ? ` Faites : ${faites.map((e) => nomSeance(e.seanceId)).join(', ')}.` : '';
   const phrase = creer('p', 'semaine__texte', texte);
-  phrase.append(creer('span', 'visuellement-cache', resume));
+  phrase.prepend(creer('span', 'visuellement-cache', `${faites.length} séance${faites.length > 1 ? 's' : ''} sur ${objectif}. `));
 
-  document.getElementById('semaine').replaceChildren(haut, barres, phrase);
+  // Pastilles des séances faites : le nom accompagne toujours la couleur
+  const faitesListe = creer('ul', 'semaine__faites');
+  faitesListe.setAttribute('aria-label', 'Séances faites cette semaine');
+  for (const entree of faites) {
+    const puce = creer('li', `semaine__puce ${teinte(entree.seanceId)}`, nomSeance(entree.seanceId));
+    faitesListe.append(puce);
+  }
+  const textes = creer('div', 'semaine__textes');
+  textes.append(titre, phrase);
+  if (faites.length) textes.append(faitesListe);
+
+  const haut = creer('div', 'semaine__haut');
+  haut.append(visuel, textes);
+
+  const totaux = totauxSeances(faites);
+  const [volume, formatVolume, uniteVolume] = volumeAffiche(totaux.volume);
+  const stats = creer('div', 'stats');
+  stats.append(
+    creerStat(totaux.series, entier, '', 'Séries'),
+    creerStat(volume, formatVolume, uniteVolume, 'Volume'),
+    creerStat(totaux.minutes, entier, 'min', 'Entraînement'),
+  );
+
+  const carte = document.getElementById('semaine');
+  carte.classList.toggle('semaine--bouclee', faites.length >= objectif);
+  carte.replaceChildren(haut, stats);
 }
 
 /** Petites infos des tuiles de l'accueil. */
@@ -630,7 +861,30 @@ function creerCarteExercice(exEnCours, i, definition) {
   if (definition) carte.append(creerConseilSeance(definition, i));
   carte.append(series);
   majCarteExercice(carte, exEnCours);
+  majRecords(carte, exEnCours, definition);
   return carte;
+}
+
+/** Médaille dorée sur les séries record d'une carte ; renvoie les textes des records (un par série). */
+function majRecords(carte, exEnCours, exercice) {
+  const textes = recordsSeries(exEnCours.series, exercice, meilleuresMarques(exEnCours.exerciceId));
+  carte.querySelectorAll('.serie').forEach((ligne, j) => {
+    const record = Boolean(textes[j]);
+    if (ligne.classList.contains('serie--record') === record) return;
+    ligne.classList.toggle('serie--record', record);
+    const numero = ligne.querySelector('.serie__numero');
+    numero.textContent = String(j + 1);
+    if (record) numero.append(creer('span', 'visuellement-cache', ' (record)'));
+  });
+  return textes;
+}
+
+/** Record battu : gerbe dorée sur la case, bandeau, vibration. */
+function celebrerRecord(ligne, texte) {
+  const boite = ligne.querySelector('.coche__boite').getBoundingClientRect();
+  eclatDore(boite.left + boite.width / 2, boite.top + boite.height / 2);
+  annoncerRecord(texte);
+  if (!mouvementReduit.matches && navigator.vibrate) navigator.vibrate([20, 60, 40]);
 }
 
 /** Compteur « 2/4 » et état « terminé » d'une carte d'exercice. */
@@ -642,7 +896,17 @@ function majCarteExercice(carte, exEnCours) {
   compte.textContent = termine ? 'Terminé' : `${faites}/${total}`;
   const etaitTermine = carte.classList.contains('exercice--termine');
   carte.classList.toggle('exercice--termine', termine);
-  if (termine && !etaitTermine && carte.isConnected) compte.classList.add('pop');
+  if (termine && !etaitTermine && carte.isConnected) {
+    relancerAnimation(compte, 'pop');
+    relancerAnimation(carte, 'exercice--brille'); // reflet qui balaie la carte
+  }
+}
+
+/** Retire puis remet une classe d'animation pour la rejouer. */
+function relancerAnimation(el, classe) {
+  el.classList.remove(classe);
+  void el.offsetWidth;
+  el.classList.add(classe);
 }
 
 /** Barre d'avancement et compteur de la séance (barre du haut). */
@@ -653,7 +917,9 @@ function majAvancement() {
   const pourcentage = total ? Math.round((faites / total) * 100) : 0;
   document.querySelector('#avancement-seance span').style.width = `${pourcentage}%`;
   const compteur = document.getElementById('compteur-seance');
-  compteur.textContent = `${faites}/${total}`;
+  const texte = `${faites}/${total}`;
+  if (compteur.textContent && compteur.textContent !== texte) relancerAnimation(compteur, 'pop');
+  compteur.textContent = texte;
   compteur.setAttribute('aria-label', `${faites} séries faites sur ${total}`);
   const terminer = document.querySelector('[data-action="terminer"]');
   if (terminer) terminer.classList.toggle('bouton--pret', total > 0 && faites === total);
@@ -805,6 +1071,7 @@ function majMinuteur() {
   }
   el.querySelector('.minuteur__libelle').textContent = `Repos · ${minuteur.nom}`;
   el.querySelector('.minuteur__temps').textContent = formaterChrono(reste);
+  el.classList.toggle('minuteur--bientot', reste <= 5); // les 5 dernières secondes battent
   el.querySelector('.minuteur__jauge span').style.width = `${Math.min(100, (reste / minuteur.total) * 100)}%`;
 }
 
@@ -813,6 +1080,7 @@ function finMinuteur() {
   clearInterval(minuteur.tic);
   minuteur.tic = null;
   const el = elementMinuteur();
+  el.classList.remove('minuteur--bientot');
   el.classList.add('minuteur--fini');
   el.querySelector('.minuteur__libelle').textContent = 'Repos terminé';
   el.querySelector('.minuteur__temps').textContent = 'C\'est reparti !';
@@ -989,6 +1257,8 @@ function saisirValeur(input) {
     propagerPoids(series, i, j, ancienne, nouvelle);
     majAideCharge(i);
   }
+  const exEnCours = etat.donnees.enCours.exercices[i];
+  majRecords(ligne.closest('.exercice'), exEnCours, trouverExerciceDansProgramme(exEnCours.exerciceId));
   etat.donnees.enCours.derniereAction = Date.now();
   enregistrer();
 }
@@ -1010,13 +1280,17 @@ function cocherSerie(caseFait) {
     boite.classList.add('pop');
     vibrer();
   }
-  majCarteExercice(ligne.closest('.exercice'), exEnCours);
+  const carte = ligne.closest('.exercice');
+  majCarteExercice(carte, exEnCours);
   majAvancement();
+  const exercice = trouverExerciceDansProgramme(exEnCours.exerciceId);
+  const records = majRecords(carte, exEnCours, exercice);
+  const record = records[Number(ligne.dataset.serie)];
+  if (serie.fait && record) celebrerRecord(ligne, `${exercice ? exercice.nom : 'Exercice'} · ${record}`);
 
   if (serie.fait) {
     preparerSon();
     const { faites, total } = compterSeries(etat.donnees.enCours);
-    const exercice = trouverExerciceDansProgramme(exEnCours.exerciceId);
     if (faites < total) lancerMinuteur(secondesRepos(exercice), exercice ? exercice.nom : 'série suivante');
     else arreterMinuteur();
   }
@@ -1053,14 +1327,8 @@ function terminerSeance() {
   }
 
   arreterMinuteur();
-  const seance = trouverSeance(entree.seanceId);
-  const nom = seance ? seance.nom : 'Séance';
-  const classeTeinte = teinte(entree.seanceId);
-  afficherAccueil();
-  afficherMessage(etat.enregistrable
-    ? `${nom} enregistrée : ${entree.dureeMin} min, ${faites} série${faites > 1 ? 's' : ''}. Bien joué !`
-    : `${nom} terminée mais non enregistrée (stockage indisponible).`);
-  lancerConfettis(classeTeinte);
+  afficherMessage(etat.enregistrable ? '' : 'Séance terminée mais non enregistrée (stockage indisponible).');
+  afficherBilan(entree);
 }
 
 function abandonnerSeance() {
@@ -1069,6 +1337,7 @@ function abandonnerSeance() {
   delete etat.donnees.enCours;
   enregistrer();
   afficherMessage('');
+  sensTransition = 'arriere';
   afficherAccueil();
 }
 
@@ -1081,6 +1350,104 @@ function retourAccueil() {
   }
   afficherMessage('');
   afficherAccueil();
+}
+
+/* ---------- Bilan de fin de séance ---------- */
+
+/** Comparaison avec la fois d'avant (même séance) : une phrase, la flèche dit le sens. */
+function texteComparaison(entree) {
+  const avant = entreesHistorique().find((e) => e.seanceId === entree.seanceId && e.id < entree.id);
+  if (!avant) return 'Première fois que tu fais cette séance : elle sert de référence.';
+  const volume = volumeEntree(entree);
+  const volumeAvant = volumeEntree(avant);
+  const quand = `par rapport au ${formaterDate(avant.id)}`;
+  if (!volume || !volumeAvant) return `Dernière fois : ${formaterDate(avant.id)}.`;
+  const ecart = Math.round(((volume - volumeAvant) / volumeAvant) * 100);
+  if (ecart === 0) return `Volume identique ${quand}.`;
+  return `${ecart > 0 ? '↑' : '↓'} Volume ${ecart > 0 ? '+' : '−'}${Math.abs(ecart)} % ${quand}.`;
+}
+
+/** Records battus pendant une séance : un par exercice, la charge avant le 1RM estimé. */
+function recordsEntree(entree) {
+  const records = [];
+  for (const ex of entree.exercices) {
+    const exercice = trouverExerciceDansProgramme(ex.exerciceId);
+    const textes = recordsSeries(ex.series, exercice, meilleuresMarques(ex.exerciceId, entree.id)).filter(Boolean);
+    const charges = textes.filter((t) => !t.startsWith('1RM'));
+    const texte = charges.length ? charges[charges.length - 1] : textes[textes.length - 1];
+    if (texte) records.push({ nom: exercice ? exercice.nom : 'Exercice retiré', texte });
+  }
+  return records;
+}
+
+/** Écran de bilan après « Terminer » : anneau des séries, chiffres animés, records, comparaison. */
+function afficherBilan(entree) {
+  const nom = nomSeance(entree.seanceId);
+  const classeTeinte = teinte(entree.seanceId);
+  const { faites, total } = compterSeries(entree);
+  const records = recordsEntree(entree);
+
+  // En-tête : anneau des séries faites, pourcentage au centre
+  const centre = creer('span', 'anneau__centre');
+  centre.setAttribute('aria-hidden', 'true');
+  const pourcentage = creer('span', 'anneau__nombre');
+  compterJusqua(pourcentage, total ? Math.round((faites / total) * 100) : 0, (v) => `${Math.round(v)} %`);
+  centre.append(pourcentage, creer('span', 'anneau__sur', 'des séries'));
+  const visuel = creer('div', 'anneau-bloc anneau-bloc--bilan');
+  visuel.append(creer('span', 'bilan__rayons'), creerAnneau([{ teinte: classeTeinte, part: total ? faites / total : 0 }]), centre);
+
+  const titre = creer('h2', 'bilan__titre', `${nom} terminée`);
+  const heure = heureDepuisId(entree.id);
+  const quand = creer('p', 'texte-secondaire', `${formaterDate(entree.id)}${heure ? ` à ${heure}` : ''}`);
+  const comparaison = creer('p', 'bilan__comparaison', texteComparaison(entree));
+  const textes = creer('div', 'bilan__textes');
+  textes.append(titre, quand, comparaison);
+  const entete = creer('section', `carte bilan ${classeTeinte}`);
+  entete.append(visuel, textes);
+
+  // Chiffres de la séance
+  const [volume, formatVolume, uniteVolume] = volumeAffiche(volumeEntree(entree));
+  const stats = creer('div', 'stats stats--bilan');
+  stats.append(
+    creerStat(entree.dureeMin, entier, 'min', 'Durée'),
+    creerStat(volume, formatVolume, uniteVolume, 'Volume'),
+    creerStat(faites, entier, `/ ${total}`, 'Séries'),
+    creerStat(records.length, entier, '', records.length > 1 ? 'Records' : 'Record'),
+  );
+
+  // Records : médaille dorée, sinon un mot d'encouragement
+  const carteRecords = creer('section', 'carte');
+  carteRecords.append(creer('h2', 'exercice__nom', records.length ? 'Nouveaux records' : 'Records'));
+  if (records.length) {
+    const liste = creer('ul', 'liste-records');
+    for (const record of records) {
+      const ligne = creer('li', 'liste-records__ligne');
+      ligne.insertAdjacentHTML('beforeend', ICONE_TROPHEE);
+      const texte = creer('span', 'liste-records__texte');
+      texte.append(creer('span', '', record.nom), creer('span', 'liste-records__valeur', record.texte));
+      ligne.append(texte);
+      liste.append(ligne);
+    }
+    carteRecords.append(liste);
+  } else {
+    carteRecords.append(creer('p', 'carte__texte texte-secondaire', 'Pas de record cette fois. La régularité paie : vise une rep de plus la prochaine fois.'));
+  }
+
+  const accueil = creer('button', 'bouton bouton--principal', 'Retour à l\'accueil');
+  accueil.type = 'button';
+  accueil.dataset.action = 'accueil';
+  const detail = creer('button', 'bouton bouton--secondaire', 'Voir le détail des séries');
+  detail.type = 'button';
+  detail.dataset.action = 'detail';
+  detail.dataset.entree = entree.id;
+  const actions = creer('div', 'actions');
+  actions.append(accueil, detail);
+
+  document.getElementById('ecran-bilan').replaceChildren(entete, stats, carteRecords, actions);
+  montrerEcran('bilan', 'Bravo !', 'Retour à l\'accueil', classeTeinte, () => {
+    setTimeout(() => lancerConfettis(classeTeinte), 300); // après le glissé de l'écran
+    if (records.length && navigator.vibrate && !mouvementReduit.matches) navigator.vibrate([20, 60, 40]);
+  });
 }
 
 /* ---------- Historique ---------- */
@@ -1215,6 +1582,7 @@ function supprimerEntree(entreeId) {
 /** Bouton retour de la barre du haut : dépend de l'écran affiché. */
 function retour() {
   afficherMessage('');
+  sensTransition = 'arriere';
   if (etat.ecran === 'seance') retourAccueil();
   else if (etat.ecran === 'detail') afficherHistorique();
   else if (etat.ecran === 'exercice') afficherProgramme();
@@ -1709,8 +2077,8 @@ function afficherProgression() {
   resultats.id = 'resultats-progression';
 
   document.getElementById('ecran-progression').replaceChildren(creerCarteCorps(), etiquette, select, choixMesure, resultats);
-  montrerEcran('progression', 'Progression');
-  majProgression(); // après l'affichage : la courbe a besoin de la largeur réelle
+  // Après l'affichage : la courbe a besoin de la largeur réelle
+  montrerEcran('progression', 'Progression', 'Retour à l\'accueil', '', () => majProgression());
 }
 
 /* ---------- Mon corps : poids de corps ---------- */
@@ -1827,8 +2195,8 @@ function afficherCorps() {
   }
 
   document.getElementById('ecran-corps').replaceChildren(...blocs);
-  montrerEcran('corps', 'Mon corps');
-  if (dessin) dessin(); // après l'affichage : la courbe a besoin de la largeur réelle
+  // Après l'affichage : la courbe a besoin de la largeur réelle
+  montrerEcran('corps', 'Mon corps', 'Retour à l\'accueil', '', dessin);
 }
 
 /** Enregistre la pesée du jour (une par jour : la nouvelle remplace l'ancienne). */
@@ -3264,8 +3632,9 @@ function afficherChat() {
   actions.append(nouvelle, changer);
 
   ecran.replaceChildren(info, fil, suggestions, saisie, actions);
-  montrerEcran('chat', 'Discuter avec Sam', 'Retour à Sam');
-  if (discussion && discussion.messages.length) fil.lastElementChild.scrollIntoView({ block: 'end' });
+  montrerEcran('chat', 'Discuter avec Sam', 'Retour à Sam', '', () => {
+    if (discussion && discussion.messages.length) fil.lastElementChild.scrollIntoView({ block: 'end' });
+  });
 }
 
 /** Envoie une question à Sam et affiche sa réponse. */
@@ -3359,6 +3728,16 @@ async function enregistrerServiceWorker() {
 /* ---------- Démarrage ---------- */
 
 const etat = chargerDonnees();
+
+// Page en cache plus ancienne que le script (la mise à jour arrive en deux temps) : on crée les écrans manquants
+for (const nom of ECRANS) {
+  if (document.getElementById(`ecran-${nom}`)) continue;
+  const section = creer('section', 'ecran');
+  section.id = `ecran-${nom}`;
+  section.setAttribute('aria-labelledby', 'titre-ecran');
+  section.hidden = true;
+  document.getElementById('contenu').append(section);
+}
 
 document.getElementById('liste-seances').addEventListener('click', (evenement) => {
   const bouton = evenement.target.closest('.seance');
@@ -3514,6 +3893,17 @@ ecranChat.addEventListener('keydown', (evenement) => {
   }
 });
 
+document.getElementById('ecran-bilan').addEventListener('click', (evenement) => {
+  const action = evenement.target.closest('[data-action]');
+  if (!action) return;
+  afficherMessage('');
+  if (action.dataset.action === 'detail') afficherDetail(action.dataset.entree);
+  else {
+    sensTransition = 'arriere';
+    afficherAccueil();
+  }
+});
+
 document.getElementById('ecran-historique').addEventListener('click', (evenement) => {
   const bouton = evenement.target.closest('[data-entree]');
   if (bouton) afficherDetail(bouton.dataset.entree);
@@ -3559,6 +3949,28 @@ ecranSeance.addEventListener('click', (evenement) => {
   else abandonnerSeance();
 });
 
+// Onde au toucher sur les boutons et les cartes : elle part du doigt et s'étale
+document.addEventListener('pointerdown', (evenement) => {
+  if (mouvementReduit.matches || !Element.prototype.animate) return;
+  const cible = evenement.target.closest('.bouton, .seance, .tuile, .bouton-mini, .suggestion, .minuteur__bouton');
+  if (!cible || cible.disabled) return;
+  const cadre = cible.getBoundingClientRect();
+  const taille = Math.hypot(cadre.width, cadre.height) * 2;
+  const onde = creer('span', 'onde');
+  onde.setAttribute('aria-hidden', 'true');
+  Object.assign(onde.style, {
+    width: `${taille}px`,
+    height: `${taille}px`,
+    left: `${evenement.clientX - cadre.left - taille / 2}px`,
+    top: `${evenement.clientY - cadre.top - taille / 2}px`,
+  });
+  cible.append(onde);
+  onde.animate([
+    { transform: 'scale(0)', opacity: 0.3 },
+    { transform: 'scale(1)', opacity: 0 },
+  ], { duration: 700, easing: 'cubic-bezier(.2,.8,.2,1)' }).onfinish = () => onde.remove();
+}, { passive: true });
+
 // Barre du haut : se compacte et devient « verre dépoli » dès qu'on fait défiler
 const marquerDefilement = () => document.body.classList.toggle('defile', window.scrollY > 8);
 window.addEventListener('scroll', marquerDefilement, { passive: true });
@@ -3577,5 +3989,6 @@ if (enCoursAuDemarrage) {
   afficherAccueil();
 }
 afficherMessage(etat.alerte);
+requestAnimationFrame(() => { transitionsActives = true; }); // premier affichage fait : les transitions peuvent jouer
 
 enregistrerServiceWorker();

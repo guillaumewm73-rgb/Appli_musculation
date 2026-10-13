@@ -26,6 +26,27 @@ Les jetons (tokens) sont en tête de `style.css`.
 - **Carte du corps** : une seule teinte (bleu `#6b7cff`) en 4 niveaux d'intensité (0 · 1-4 · 5-9 · 10+ séries), légende et liste chiffrée à côté. **Minuteur de repos** : barre flottante en bas, jauge dans la couleur de la séance, gros chiffres.
 - **Sam, le coach** : avatar rond « S » dans le dégradé de l'appli (cobalt → violet), halo qui respire sur l'accueil. Bulles de discussion : les tiennes en dégradé à droite, celles de Sam en graphite à gauche. Pastilles de conseil toujours avec un mot (« Monter », « Baisser », « Stagnation », « Sauté », « À ajouter ») : la couleur n'est jamais le seul repère.
 
+## v3 — La plus belle et la plus animée (13/10/2026, à la demande de Guillaume)
+
+Analyse du style des applis de référence, et ce qu'on en reprend :
+
+| Appli | Ce qui la rend belle ou vivante | Repris ici |
+|---|---|---|
+| Apple Fitness | Anneaux d'activité qui se remplissent | Anneau « Cette semaine » : un segment par séance, à sa couleur, qui se trace |
+| Hevy | Trophées de records, résumés de séance à partager, retours haptiques | Record détecté à la coche (médaille dorée, gerbe, bandeau, vibration) + écran de bilan |
+| Gentler Streak (Apple Design Award 2024) | Transitions et animations douces, ambiance accueillante | Glissé-fondu entre écrans, rayons lents derrière l'anneau du bilan |
+| Fitbod | Interface très épurée, carte du corps toujours accessible | Hiérarchie claire, une action principale, carte du corps (déjà là) |
+| Strong | « Reste hors du chemin », grosses cibles | La saisie en séance ne change pas : les effets ne ralentissent rien |
+| Gravl | Résumés du coach, projection de force | Bilan : comparaison du volume avec la fois d'avant |
+
+Règles v3 :
+- **Or `#f5b82e`** (dégradé `#ffe08a` → `#f5b82e` → `#e08a1e`) réservé aux records, texte onyx dessus (contraste ≥ 9:1). Le mot « record » accompagne toujours l'or.
+- **Transitions entre écrans** (View Transitions) : la page glisse vers la gauche en avançant, vers la droite en revenant (220-380 ms) ; la barre du haut et le minuteur restent en place. Navigateur sans support : changement immédiat.
+- **Chiffres animés** : les compteurs montent de 0 à leur valeur (1 s, ralentissement à l'arrivée) ; les lecteurs d'écran lisent la phrase finale.
+- **Micro-interactions** : onde qui part du doigt sur les boutons et cartes, anneau qui s'échappe de la case cochée, reflet qui balaie un exercice terminé, compteur qui « pop », contour lumineux qui tourne autour de la prochaine séance, 5 dernières secondes du repos qui battent.
+- **Au défilement** (navigateurs récents) : le halo monte et pâlit, les cartes de l'accueil reculent en sortant par le haut.
+- **Réduire les animations** : pas de transition d'écran, pas d'onde, pas de gerbe, chiffres affichés directement.
+
 ## Règles appliquées (v1)
 
 | Mercury | Dans l'appli |

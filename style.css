@@ -886,7 +886,7 @@ body.defile .barre__titre {
     transform 0.6s var(--courbe) var(--delai, 0ms);
 }
 
-/* ---------- Accueil ---------- */
+/* ---------- Accueil : anneau de la semaine (style anneaux d'activité) ---------- */
 .semaine {
   position: relative;
   overflow: hidden;
@@ -895,69 +895,164 @@ body.defile .barre__titre {
 
 .semaine__haut {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--esp-12);
+  align-items: center;
+  gap: var(--esp-20);
+}
+
+.semaine__textes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+  min-width: 0;
 }
 
 .semaine__titre {
   font-size: var(--texte-sous-titre);
 }
 
-.semaine__compte {
-  font-size: var(--texte-titre-grand);
-  font-weight: var(--graisse-accent);
+.semaine__texte {
+  font-size: var(--texte-petit);
+  line-height: 1.4;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Séances faites : pastille de couleur + nom (la couleur n'est jamais seule) */
+.semaine__faites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: var(--esp-8) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.semaine__puce {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 8px;
+  border-radius: var(--rayon-pilule);
+  background: rgb(255 255 255 / 0.07);
+  font-size: var(--texte-legende);
+}
+
+.semaine__puce::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.anneau-bloc {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 120px;
+}
+
+.anneau {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 10px rgb(107 124 255 / 0.28));
+}
+
+.anneau__piste,
+.anneau__arc {
+  fill: none;
+  stroke-width: 11;
+  stroke-linecap: round;
+}
+
+.anneau__piste {
+  stroke: rgb(255 255 255 / 0.08);
+}
+
+/* L'arc se trace jusqu'à sa valeur (posée par le script) */
+.anneau__arc {
+  stroke: var(--accent);
+  stroke-dasharray: 100 100;
+  animation: tracer 1.1s var(--courbe) var(--delai, 0ms) both;
+}
+
+@keyframes tracer {
+  from { stroke-dashoffset: 100; }
+}
+
+.anneau__centre {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   line-height: 1;
 }
 
-.semaine__barres {
+.anneau__nombre {
+  font-size: 34px;
+  font-weight: var(--graisse-accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.anneau__sur {
+  margin-top: var(--esp-4);
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Semaine bouclée : l'anneau brille doucement */
+.semaine--bouclee .anneau {
+  animation: anneau-brille 2.8s ease-in-out infinite;
+}
+
+@keyframes anneau-brille {
+  50% { filter: drop-shadow(0 0 18px rgb(154 166 255 / 0.6)); }
+}
+
+/* Chiffres : gros, alignés, l'unité en petit */
+.stats {
   display: grid;
-  grid-auto-columns: 1fr;
-  grid-auto-flow: column;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--esp-8);
   margin-top: var(--esp-20);
 }
 
-.semaine__colonne {
+.stat {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--esp-8);
+  gap: 2px;
   min-width: 0;
+  padding: var(--esp-12);
+  border-radius: var(--rayon-carte);
+  background: rgb(255 255 255 / 0.05);
 }
 
-.semaine__barre {
-  position: relative;
-  height: 10px;
-  overflow: hidden;
-  border-radius: var(--rayon-pilule);
-  background: rgb(255 255 255 / 0.08);
-}
-
-.semaine__barre--pleine::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent-fort), var(--accent-clair));
-  transform-origin: left;
-  animation: remplir 0.7s var(--courbe) var(--delai, 0ms) both;
-}
-
-@keyframes remplir {
-  from { transform: scaleX(0); }
-}
-
-.semaine__etiquette {
-  min-height: 1.2em;
-  overflow: hidden;
-  font-size: var(--texte-legende);
-  color: var(--couleur-texte-secondaire);
-  text-overflow: ellipsis;
+.stat__ligne {
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-4);
   white-space: nowrap;
 }
 
-.semaine__texte {
-  margin-top: var(--esp-12);
+.stat__chiffre {
+  font-size: 24px;
+  font-weight: var(--graisse-accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.stat__unite,
+.stat__legende {
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
 }
 
 /* Cartes de séance : pastille numérotée, lueur de couleur dans le coin */
@@ -1862,6 +1957,450 @@ body.avec-minuteur .page {
 .tuile:last-child:nth-child(odd) {
   grid-column: span 2;
   min-height: 0;
+}
+
+/* =========================================================
+   v3 : transitions, records, bilan, micro-interactions
+   (inspirations : anneaux d'activité, trophées de Hevy,
+   douceur de Gentler Streak — voir DESIGN.md)
+   ========================================================= */
+
+/* Or des records : réservé aux records, texte onyx dessus (contraste ≥ 9:1) */
+:root {
+  --or: #f5b82e;
+  --or-clair: #ffd66b;
+  --or-degrade: linear-gradient(135deg, #ffe08a 0%, #f5b82e 55%, #e08a1e 100%);
+}
+
+/* ---------- Transitions entre écrans (View Transitions) ----------
+   La page glisse dans le sens de la navigation ; la barre du haut et le minuteur restent en place. */
+.barre {
+  view-transition-name: barre;
+}
+
+.minuteur {
+  view-transition-name: minuteur;
+}
+
+::view-transition-old(root) {
+  animation: ecran-sortie-avant 0.22s var(--courbe) both;
+}
+
+::view-transition-new(root) {
+  animation: ecran-entree-avant 0.38s var(--courbe) both;
+}
+
+:root[data-sens="arriere"]::view-transition-old(root) {
+  animation-name: ecran-sortie-arriere;
+}
+
+:root[data-sens="arriere"]::view-transition-new(root) {
+  animation-name: ecran-entree-arriere;
+}
+
+::view-transition-group(barre) {
+  animation-duration: 0.38s;
+  animation-timing-function: var(--courbe);
+}
+
+@keyframes ecran-sortie-avant {
+  to { opacity: 0; transform: translateX(-24px); }
+}
+
+@keyframes ecran-entree-avant {
+  from { opacity: 0; transform: translateX(36px); }
+}
+
+@keyframes ecran-sortie-arriere {
+  to { opacity: 0; transform: translateX(24px); }
+}
+
+@keyframes ecran-entree-arriere {
+  from { opacity: 0; transform: translateX(-36px); }
+}
+
+/* ---------- Onde au toucher ---------- */
+.bouton,
+.tuile,
+.bouton-mini,
+.suggestion,
+.minuteur__bouton {
+  position: relative;
+  overflow: hidden;
+}
+
+.onde {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.4), rgb(255 255 255 / 0));
+  transform: scale(0);
+  pointer-events: none;
+}
+
+/* ---------- Accueil ---------- */
+
+/* Petit trait de couleur devant les titres de section */
+.titre-section::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  margin-right: var(--esp-8);
+  border-radius: 2px;
+  background: linear-gradient(90deg, #4f63e8, #6a4fdc);
+  vertical-align: middle;
+}
+
+/* Prochaine séance : un contour lumineux tourne autour de la carte */
+@property --angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.seance--prochaine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--angle), transparent 0deg, var(--accent-clair) 70deg, transparent 150deg, transparent 180deg, var(--accent) 250deg, transparent 330deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: tourner 5s linear infinite;
+}
+
+@keyframes tourner {
+  to { --angle: 360deg; }
+}
+
+/* ---------- Séance ---------- */
+
+/* Case cochée : un anneau s'échappe de la case */
+.coche__boite {
+  position: relative;
+}
+
+.coche__boite.pop::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--accent-clair);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: onde-coche 0.6s var(--courbe) forwards;
+}
+
+@keyframes onde-coche {
+  from { opacity: 0.9; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.9); }
+}
+
+/* Exercice terminé : un reflet balaie la carte */
+.exercice {
+  overflow: hidden;
+}
+
+.exercice--brille::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.1) 50%, transparent 70%);
+  pointer-events: none;
+  animation: balayage 1s var(--courbe) both;
+}
+
+@keyframes balayage {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* Série record : numéro en médaille dorée, case dorée */
+.serie--record .serie__numero {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--or-degrade);
+  background-size: 200% 200%;
+  box-shadow: 0 0 12px -2px rgb(245 184 46 / 0.7);
+  color: var(--couleur-fond);
+  font-size: var(--texte-legende);
+  font-weight: var(--graisse-accent);
+  animation: reflet-or 2.4s ease-in-out infinite;
+}
+
+.serie--record .coche input:checked + .coche__boite {
+  border-color: var(--or);
+  background: var(--or-degrade);
+  box-shadow: 0 0 20px -4px var(--or);
+}
+
+@keyframes reflet-or {
+  50% { background-position: 100% 100%; box-shadow: 0 0 18px 0 rgb(245 184 46 / 0.55); }
+}
+
+/* Gerbe dorée autour de la case */
+.eclat {
+  position: fixed;
+  z-index: 55;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.eclat__particule {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--or-clair);
+  box-shadow: 0 0 8px var(--or);
+}
+
+/* Bandeau « Nouveau record » : descend du haut, reflet qui passe */
+.bandeau-record {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + var(--esp-12));
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-12);
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--esp-16));
+  padding: var(--esp-8) var(--esp-20) var(--esp-8) var(--esp-8);
+  overflow: hidden;
+  border-radius: var(--rayon-pilule);
+  background: var(--or-degrade);
+  box-shadow: 0 16px 40px -12px rgb(245 184 46 / 0.65);
+  color: var(--couleur-fond);
+  opacity: 0;
+  transform: translate(-50%, -160%);
+  transition: transform 0.55s var(--courbe-rebond), opacity 0.3s;
+  pointer-events: none;
+}
+
+.bandeau-record--visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.bandeau-record--visible::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.55) 50%, transparent 70%);
+  animation: balayage 1.2s var(--courbe) 0.3s both;
+}
+
+.bandeau-record .icone-trophee {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  border-radius: 50%;
+  background: rgb(23 23 33 / 0.12);
+}
+
+.bandeau-record__textes {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.bandeau-record__titre {
+  font-weight: var(--graisse-accent);
+}
+
+.bandeau-record__detail {
+  overflow: hidden;
+  font-size: var(--texte-petit);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Minuteur : les 5 dernières secondes battent */
+.minuteur--bientot {
+  box-shadow: 0 0 0 1px var(--accent), 0 16px 40px -12px var(--accent);
+}
+
+.minuteur--bientot .minuteur__temps {
+  animation: battement 1s ease-in-out infinite;
+  transform-origin: left center;
+}
+
+@keyframes battement {
+  50% { transform: scale(1.08); }
+}
+
+/* ---------- Bilan de fin de séance ---------- */
+.bilan {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-20);
+  overflow: hidden;
+  padding-top: var(--esp-32);
+  text-align: center;
+}
+
+.bilan::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(90% 70% at 50% 0%, var(--accent), transparent 70%);
+  opacity: 0.28;
+}
+
+.anneau-bloc--bilan {
+  width: 168px;
+  height: 168px;
+  animation: medaille 0.8s var(--courbe-rebond) both;
+}
+
+.anneau-bloc--bilan .anneau {
+  filter: drop-shadow(0 0 14px var(--accent));
+}
+
+.anneau-bloc--bilan .anneau__nombre {
+  font-size: 40px;
+}
+
+@keyframes medaille {
+  from { opacity: 0; transform: scale(0.6) rotate(-14deg); }
+}
+
+/* Rayons qui tournent lentement derrière l'anneau */
+.bilan__rayons {
+  position: absolute;
+  inset: -35%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(var(--accent-clair) 0deg 4deg, transparent 4deg 30deg);
+  opacity: 0.16;
+  filter: blur(3px);
+  -webkit-mask: radial-gradient(closest-side, #000 35%, transparent);
+  mask: radial-gradient(closest-side, #000 35%, transparent);
+  animation: tourner-rayons 16s linear infinite;
+}
+
+@keyframes tourner-rayons {
+  to { transform: rotate(1turn); }
+}
+
+.bilan__textes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-4);
+}
+
+.bilan__titre {
+  font-size: var(--texte-titre);
+}
+
+.bilan__comparaison {
+  margin-top: var(--esp-8);
+  padding: var(--esp-4) var(--esp-12);
+  border-radius: var(--rayon-pilule);
+  background: rgb(255 255 255 / 0.08);
+  font-size: var(--texte-petit);
+}
+
+.stats--bilan {
+  grid-template-columns: 1fr 1fr;
+  gap: var(--esp-12);
+  margin-top: 0;
+}
+
+.stats--bilan .stat {
+  padding: var(--esp-16) var(--esp-20);
+  background: var(--couleur-carte);
+}
+
+.stats--bilan .stat__chiffre {
+  font-size: 32px;
+}
+
+.liste-records {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-8);
+  margin: var(--esp-12) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.liste-records__ligne {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-12);
+  padding: var(--esp-12);
+  border: 1px solid rgb(245 184 46 / 0.3);
+  border-radius: var(--rayon-carte);
+  background: rgb(245 184 46 / 0.08);
+}
+
+.liste-records__ligne .icone-trophee {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  border-radius: 50%;
+  background: var(--or-degrade);
+  box-shadow: 0 6px 18px -6px var(--or);
+  color: var(--couleur-fond);
+}
+
+.liste-records__texte {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.liste-records__valeur {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+/* ---------- Effets au défilement (navigateurs qui savent les lier au scroll) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    /* Le halo monte et pâlit quand on descend */
+    body::before {
+      animation: aurore 16s ease-in-out infinite alternate, aurore-defile linear both;
+      animation-timeline: auto, scroll(root);
+      animation-range: normal, 0 70vh;
+    }
+
+    /* Les cartes de l'accueil reculent en sortant par le haut */
+    .semaine,
+    .carte-sam,
+    .liste-seances > li,
+    .tuile {
+      animation: carte-sortie linear;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+  }
+}
+
+@keyframes aurore-defile {
+  to { translate: 0 -18vh; opacity: 0.5; }
+}
+
+@keyframes carte-sortie {
+  to { opacity: 0.3; transform: scale(0.92); }
 }
 
 /* Réglage « Réduire les animations » du téléphone : tout devient immédiat */
