@@ -164,6 +164,7 @@ function chargerDonnees() {
 const ICONE_FLECHE = '<svg class="seance__fleche" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICONE_HAUT = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICONE_BAS = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICONE_LECTURE = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>';
 const ICONE_TROPHEE = '<svg class="icone-trophee" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 4h10v5a5 5 0 0 1-10 0V4z M7 6H4.5v1.5A3 3 0 0 0 7.5 10.5 M17 6h2.5v1.5a3 3 0 0 1-3 3 M12 14v3.5 M8.5 20h7 M9.5 17.5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICONE_COCHE ='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -857,7 +858,26 @@ function creerCarteExercice(exEnCours, i, definition) {
   const carte = creer('article', 'carte exercice');
   carte.dataset.exercice = i;
   carte.setAttribute('aria-labelledby', titre.id);
-  carte.append(haut, creer('p', 'exercice__cible', texteCible(exercice)));
+  const cible = creer('p', 'exercice__cible', texteCible(exercice));
+  if (definition && demosDe(definition)) {
+    // Objectif + bouton « Démo » sur une ligne, panneau du mannequin animé en dessous
+    const bouton = creer('button', 'bouton-mini bouton-demo');
+    bouton.type = 'button';
+    bouton.dataset.demo = String(i);
+    bouton.setAttribute('aria-expanded', 'false');
+    bouton.setAttribute('aria-controls', `demo-${i}`);
+    bouton.setAttribute('aria-label', `Démo du mouvement : ${exercice.nom}`);
+    bouton.insertAdjacentHTML('beforeend', ICONE_LECTURE);
+    bouton.append('Démo');
+    const ligneCible = creer('div', 'exercice__cible-ligne');
+    ligneCible.append(cible, bouton);
+    const panneau = creer('div', 'demo');
+    panneau.id = `demo-${i}`;
+    panneau.hidden = true;
+    carte.append(haut, ligneCible, panneau);
+  } else {
+    carte.append(haut, cible);
+  }
   if (definition) carte.append(creerConseilSeance(definition, i));
   carte.append(series);
   majCarteExercice(carte, exEnCours);
@@ -1209,6 +1229,576 @@ function majAideCharge(i) {
   if (!panneau || panneau.hidden) return;
   const exercice = trouverExerciceDansProgramme(etat.donnees.enCours.exercices[i].exerciceId);
   if (exercice) remplirAideCharge(panneau, exercice, i);
+}
+
+/* ---------- Démos de mouvement ----------
+   Un mannequin dessiné en SVG (fait maison : rien à télécharger, marche hors ligne).
+   Une démo = deux positions (départ, arrivée) et le matériel ; l'appli anime entre les deux.
+   Positions : la hanche, l'angle du buste, puis pour chaque bras/jambe (0 = côté proche, 1 = côté loin)
+   soit la cible de la main/cheville (le coude/genou se place tout seul), soit les angles des deux segments.
+   Angles en degrés : 0 = vers la droite (devant), 90 = vers le bas, -90 = vers le haut. */
+
+// Longueurs du mannequin (unités du dessin ; le sol est à y = 192)
+const OS = { buste: 48, cou: 7, tete: 9, bras: 28, avantBras: 26, cuisse: 40, jambe: 38, pied: 13 };
+const SOL = 192;
+const DUREES_DEMO = [1000, 350, 1150, 400]; // aller, pause, retour, pause (ms)
+
+const enRadians = (degres) => (degres * Math.PI) / 180;
+const versLe = (point, angle, longueur) => [point[0] + longueur * Math.cos(enRadians(angle)), point[1] + longueur * Math.sin(enRadians(angle))];
+const douceur = (x) => (1 - Math.cos(Math.PI * x)) / 2;
+
+/** Deux segments qui relient une origine à une cible ; pli (1 ou -1) choisit le côté du coude ou du genou. */
+function plier(origine, cible, a, b, pli) {
+  const dx = cible[0] - origine[0];
+  const dy = cible[1] - origine[1];
+  const d = Math.min(a + b - 0.01, Math.max(Math.abs(a - b) + 0.01, Math.hypot(dx, dy)));
+  const direction = Math.atan2(dy, dx);
+  const ouverture = Math.acos((a * a + d * d - b * b) / (2 * a * d));
+  const milieu = [origine[0] + a * Math.cos(direction + pli * ouverture), origine[1] + a * Math.sin(direction + pli * ouverture)];
+  return [milieu, [origine[0] + d * Math.cos(direction), origine[1] + d * Math.sin(direction)]];
+}
+
+/** Bras ou jambe : par sa cible, sinon par ses deux angles. */
+function membre(origine, cible, angles, a, b, pli) {
+  if (cible) return plier(origine, cible, a, b, pli);
+  const milieu = versLe(origine, angles[0], a);
+  return [milieu, versLe(milieu, angles[1], b)];
+}
+
+/** Position intermédiaire entre deux positions (t de 0 à 1). */
+function melanger(a, b, t) {
+  if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * t;
+  if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => melanger(v, b[i], t));
+  if (a && b && typeof a === 'object') return Object.fromEntries(Object.keys({ ...a, ...b }).map((k) => [k, melanger(a[k], b[k], t)]));
+  return t < 0.5 ? a : b;
+}
+
+/** Points du mannequin pour une position. */
+function squelette(pose, demo) {
+  const face = demo.vue === 'face';
+  const plis = demo.plis || {};
+  const epaule = versLe(pose.hanche, pose.buste, OS.buste);
+  const angleTete = pose.tete ?? pose.buste;
+  const s = {
+    hanche: pose.hanche,
+    epaule,
+    baseTete: versLe(epaule, angleTete, OS.cou),
+    tete: versLe(epaule, angleTete, OS.cou + OS.tete),
+    // De face : épaules et hanches écartées de part et d'autre du buste
+    epaules: face ? [versLe(epaule, pose.buste - 90, 16), versLe(epaule, pose.buste + 90, 16)] : [epaule, epaule],
+    hanches: face ? [versLe(pose.hanche, pose.buste - 90, 10), versLe(pose.hanche, pose.buste + 90, 10)] : [pose.hanche, pose.hanche],
+    coudes: [], poignets: [], genoux: [], chevilles: [], pointes: [],
+  };
+  for (const i of [0, 1]) {
+    [s.coudes[i], s.poignets[i]] = membre(s.epaules[i], pose.mains && pose.mains[i], pose.bras && pose.bras[i], OS.bras, OS.avantBras, plis.coudes ? plis.coudes[i] : 1);
+    [s.genoux[i], s.chevilles[i]] = membre(s.hanches[i], pose.pieds && pose.pieds[i], pose.jambes && pose.jambes[i], OS.cuisse, OS.jambe, plis.genoux ? plis.genoux[i] : -1);
+    const angleJambe = (Math.atan2(s.chevilles[i][1] - s.genoux[i][1], s.chevilles[i][0] - s.genoux[i][0]) * 180) / Math.PI;
+    const orteils = pose.orteils && pose.orteils[i] !== null ? pose.orteils[i] : (face ? [165, 15][i] : angleJambe - 90);
+    s.pointes[i] = versLe(s.chevilles[i], orteils, face ? 8 : OS.pied);
+  }
+  return s;
+}
+
+/** Meuble ou machine fixe : { l: [x1, y1, x2, y2], e } ligne, { r: [x, y, l, h] } bloc, { c: [x, y, r] } rond. */
+function creerMeuble(forme) {
+  if (forme.l) {
+    const [x1, y1, x2, y2] = forme.l;
+    return creerSvg('line', { x1, y1, x2, y2, 'stroke-width': forme.e || 6 }, 'demo__meuble');
+  }
+  if (forme.r) {
+    const [x, y, width, height] = forme.r;
+    return creerSvg('rect', { x, y, width, height, rx: 3 }, 'demo__meuble demo__meuble--plein');
+  }
+  const [cx, cy, r] = forme.c;
+  return creerSvg('circle', { cx, cy, r }, 'demo__meuble demo__meuble--plein');
+}
+
+/** Crée les traits du mannequin et du matériel mobile, dans l'ordre de dessin (le côté loin d'abord). */
+function creerMannequin(svg, demo) {
+  const face = demo.vue === 'face';
+  const os = (classe) => creerSvg('line', {}, `os ${classe}`);
+  const cotes = face ? ['os--pres', 'os--pres'] : ['os--pres', 'os--loin'];
+  const p = {
+    face,
+    jambes: cotes.map((c) => ({ cuisse: os(`os--cuisse ${c}`), jambe: os(`os--jambe ${c}`), pied: os(`os--pied ${c}`) })),
+    bras: cotes.map((c) => ({ bras: os(`os--bras ${c}`), avantBras: os(`os--avant-bras ${c}`) })),
+    buste: face ? creerSvg('polygon', {}, 'os os--buste-face') : os('os--buste os--pres'),
+    cou: os('os--cou os--pres'),
+    tete: creerSvg('circle', { r: OS.tete }, 'os-tete'),
+    charges: [],
+    cables: [],
+  };
+  // Charge tenue en main : disque de barre (côté proche), haltères (deux mains), poignée de câble
+  const mainsChargees = demo.charge === 'halteres' ? [0, 1] : demo.charge ? (demo.cable && demo.cable.mains) || [0] : [];
+  const rayon = { barre: 15, halteres: 7, poignee: 4 }[demo.charge];
+  for (const i of mainsChargees) {
+    const loin = !face && i === 1 ? ' demo__charge--loin' : '';
+    p.charges.push({ i, el: creerSvg('circle', { r: rayon }, `demo__charge demo__charge--${demo.charge}${loin}`) });
+  }
+  if (demo.cable) {
+    for (const i of demo.cable.mains) {
+      const ancre = demo.cable.ancres ? demo.cable.ancres[i] : demo.cable.ancre;
+      p.cables.push({ i, ancre, el: creerSvg('line', { x1: ancre[0], y1: ancre[1] }, 'demo__cable') });
+    }
+  }
+  p.levier = demo.levier ? creerSvg('line', { x1: demo.levier.pivot[0], y1: demo.levier.pivot[1] }, 'demo__levier') : null;
+  p.rouleau = demo.rouleau ? creerSvg('circle', { r: 7 }, 'demo__charge') : null;
+  p.plateau = demo.plateau ? creerSvg('line', {}, 'demo__plateau') : null;
+
+  const chargesDe = (i) => p.charges.filter((c) => c.i === i).map((c) => c.el);
+  const membres = (i) => [p.jambes[i].cuisse, p.jambes[i].jambe, p.jambes[i].pied, p.bras[i].bras, p.bras[i].avantBras];
+  const elements = face
+    ? [p.buste, p.cou, p.tete, ...membres(0), ...membres(1), ...p.cables.map((c) => c.el), ...p.charges.map((c) => c.el)]
+    : [...membres(1), ...chargesDe(1), p.buste, p.cou, p.tete, ...p.cables.map((c) => c.el),
+      p.jambes[0].cuisse, p.jambes[0].jambe, p.jambes[0].pied, p.levier, p.rouleau, p.plateau,
+      p.bras[0].bras, p.bras[0].avantBras, ...chargesDe(0)];
+  svg.append(...elements.filter(Boolean));
+  for (const cable of p.cables) svg.append(creerSvg('circle', { cx: cable.ancre[0], cy: cable.ancre[1], r: 6 }, 'demo__poulie'));
+  return p;
+}
+
+const fixe = (n) => n.toFixed(1);
+function placerTrait(el, a, b) {
+  el.setAttribute('x1', fixe(a[0]));
+  el.setAttribute('y1', fixe(a[1]));
+  el.setAttribute('x2', fixe(b[0]));
+  el.setAttribute('y2', fixe(b[1]));
+}
+
+/** Met le mannequin dans une position. */
+function poserMannequin(p, demo, pose) {
+  const s = squelette(pose, demo);
+  if (p.face) p.buste.setAttribute('points', [s.hanches[0], s.hanches[1], s.epaules[1], s.epaules[0]].map((pt) => pt.map(fixe).join(',')).join(' '));
+  else placerTrait(p.buste, s.hanche, s.epaule);
+  placerTrait(p.cou, s.epaule, s.baseTete);
+  p.tete.setAttribute('cx', fixe(s.tete[0]));
+  p.tete.setAttribute('cy', fixe(s.tete[1]));
+  for (const i of [0, 1]) {
+    placerTrait(p.jambes[i].cuisse, s.hanches[i], s.genoux[i]);
+    placerTrait(p.jambes[i].jambe, s.genoux[i], s.chevilles[i]);
+    placerTrait(p.jambes[i].pied, s.chevilles[i], s.pointes[i]);
+    placerTrait(p.bras[i].bras, s.epaules[i], s.coudes[i]);
+    placerTrait(p.bras[i].avantBras, s.coudes[i], s.poignets[i]);
+  }
+  for (const { i, el } of p.charges) {
+    el.setAttribute('cx', fixe(s.poignets[i][0]));
+    el.setAttribute('cy', fixe(s.poignets[i][1]));
+  }
+  for (const { i, ancre, el } of p.cables) placerTrait(el, ancre, s.poignets[i]);
+  if (p.levier) placerTrait(p.levier, demo.levier.pivot, demo.levier.vers === 'pied' ? s.chevilles[0] : s.poignets[0]);
+  if (p.rouleau) {
+    p.rouleau.setAttribute('cx', fixe(s.chevilles[0][0]));
+    p.rouleau.setAttribute('cy', fixe(s.chevilles[0][1]));
+  }
+  if (p.plateau) {
+    const centre = versLe(s.chevilles[0], demo.plateau.normale, 7);
+    placerTrait(p.plateau, versLe(centre, demo.plateau.normale - 90, 26), versLe(centre, demo.plateau.normale + 90, 26));
+  }
+  return s;
+}
+
+/** Cadre de la scène : on coupe le vide au-dessus du mouvement (exercices allongés ou assis). */
+function cadrageScene(demo) {
+  let haut = SOL;
+  const voir = (y) => { haut = Math.min(haut, y); };
+  const marge = demo.charge === 'barre' ? 15 : 8;
+  for (let k = 0; k <= 8; k++) {
+    const s = squelette(melanger(demo.depart, demo.arrivee, k / 8), demo);
+    voir(s.tete[1] - OS.tete);
+    for (const point of [...s.coudes, ...s.poignets, ...s.genoux, ...s.chevilles]) voir(point[1] - marge);
+    if (demo.plateau) voir(s.chevilles[0][1] - 26);
+  }
+  for (const f of demo.decor || []) voir(f.l ? Math.min(f.l[1], f.l[3]) : f.r ? f.r[1] : f.c[1] - f.c[2]);
+  if (demo.cable) for (const ancre of demo.cable.ancres || [demo.cable.ancre]) voir(ancre[1] - 8);
+  const y = Math.max(0, Math.floor(haut - 10));
+  return `0 ${y} 220 ${SOL + 8 - y}`;
+}
+
+/** Scène SVG d'une démo, dans une position (0 = départ, 1 = arrivée). */
+function creerScene(demo, moment) {
+  const svg = creerSvg('svg', { viewBox: cadrageScene(demo), 'aria-hidden': 'true', focusable: 'false' }, 'demo__scene');
+  svg.append(creerSvg('line', { x1: 0, y1: SOL, x2: 220, y2: SOL }, 'demo__sol'), ...(demo.decor || []).map(creerMeuble));
+  if (demo.trace) {
+    // Trajet de la charge (ou du pied) en pointillés : le bon chemin à suivre
+    const points = [];
+    for (let k = 0; k <= 20; k++) {
+      const s = squelette(melanger(demo.depart, demo.arrivee, k / 20), demo);
+      const point = demo.trace === 'pied' ? s.chevilles[0] : s.poignets[0];
+      points.push(point.map(fixe).join(','));
+    }
+    svg.append(creerSvg('polyline', { points: points.join(' ') }, 'demo__trace'));
+  }
+  const parties = creerMannequin(svg, demo);
+  poserMannequin(parties, demo, melanger(demo.depart, demo.arrivee, moment));
+  return { svg, parties };
+}
+
+/** Fait aller et venir le mannequin tant que le panneau est ouvert. */
+function animerDemo(svg, demo, parties) {
+  const [aller, pause, retour, attente] = DUREES_DEMO;
+  const total = aller + pause + retour + attente;
+  const debut = performance.now();
+  const etape = (maintenant) => {
+    if (!svg.isConnected || svg.closest('[hidden]')) return; // panneau fermé ou écran quitté : on arrête
+    let t = (maintenant - debut) % total;
+    let avance = 0;
+    if (t < aller) avance = douceur(t / aller);
+    else if ((t -= aller) < pause) avance = 1;
+    else if ((t -= pause) < retour) avance = 1 - douceur(t / retour);
+    poserMannequin(parties, demo, melanger(demo.depart, demo.arrivee, avance));
+    requestAnimationFrame(etape);
+  };
+  requestAnimationFrame(etape);
+}
+
+/** Démo : l'arrivée reprend tout ce qu'elle ne change pas du départ. */
+function demo(definition) {
+  return { ...definition, arrivee: { ...definition.depart, ...definition.arrivee } };
+}
+
+// Positions et meubles qui reviennent
+const DEBOUT = { hanche: [96, 112], buste: -90, pieds: [[100, 188], [94, 188]] };
+const BANC_PLAT = [{ r: [28, 150, 112, 9] }, { l: [44, 159, 44, 190] }, { l: [124, 159, 124, 190] }];
+const ALLONGE = { hanche: [112, 143], buste: 180, tete: 182, pieds: [[150, 188], [144, 188]] };
+const BANC_INCLINE = [{ r: [104, 147, 40, 8] }, { l: [122, 150, 60, 107], e: 9 }, { l: [112, 155, 112, 190] }, { l: [76, 126, 90, 190] }];
+const ASSIS_INCLINE = { hanche: [118, 140], buste: -145, pieds: [[160, 188], [154, 188]] };
+const ASSIS_BAS = { hanche: [70, 160], pieds: [[146, 170], [142, 170]], orteils: [-80, -80] };
+const DECOR_POULIE_BASSE = [{ r: [46, 168, 48, 8] }, { l: [70, 176, 70, 190] }, { l: [154, 148, 154, 186] }, { l: [178, 150, 178, 190], e: 7 }];
+
+const DEMO_POUSSEE_POULIE = demo({
+  nom: 'Poulie triceps',
+  muscles: ['triceps'],
+  decor: [{ l: [158, 0, 158, 190], e: 7 }],
+  cable: { ancre: [150, 6], mains: [0] },
+  charge: 'poignee',
+  depart: { hanche: [96, 112], buste: -84, pieds: [[104, 188], [92, 188]], bras: [[86, -20], [88, -15]] },
+  arrivee: { bras: [[86, 88], [88, 90]] },
+  trace: 'main',
+  points: ['Coudes collés au corps : seuls les avant-bras bougent', 'Descends jusqu\'aux bras tendus, serre les triceps 1 s', 'Remonte lentement jusqu\'à l\'horizontale'],
+});
+
+const DEMOS = {
+  'dev-couche': [demo({
+    nom: 'Développé couché',
+    decor: BANC_PLAT,
+    charge: 'barre',
+    plis: { coudes: [1, 1], genoux: [-1, -1] },
+    depart: { ...ALLONGE, mains: [[66, 92], [63, 92]] },
+    arrivee: { mains: [[76, 120], [73, 120]] },
+    trace: 'main',
+    points: ['Omoplates serrées, pieds bien à plat au sol', 'Descends la barre au bas des pectoraux, coudes à 45° du corps', 'Pousse en expirant, les fesses restent sur le banc'],
+  })],
+  'dev-incline-halteres': [demo({
+    nom: 'Développé incliné haltères',
+    decor: BANC_INCLINE,
+    charge: 'halteres',
+    depart: { ...ASSIS_INCLINE, mains: [[84, 62], [81, 62]] },
+    arrivee: { mains: [[90, 100], [87, 100]] },
+    trace: 'main',
+    points: ['Banc à 30-45°, omoplates serrées', 'Descends les haltères sur les côtés du haut des pectoraux', 'Pousse vers le haut en rapprochant les haltères'],
+  })],
+  'militaire-ou-laterales': [demo({
+    nom: 'Développé militaire',
+    charge: 'halteres',
+    plis: { coudes: [1, 1] },
+    depart: { ...DEBOUT, mains: [[112, 52], [109, 52]] },
+    arrivee: { mains: [[103, 10], [100, 10]] },
+    trace: 'main',
+    points: ['Abdos et fessiers serrés : le dos ne se cambre pas', 'Pars des haltères à hauteur d\'oreilles', 'Pousse à la verticale jusqu\'aux bras presque tendus'],
+  }), demo({
+    nom: 'Élévations latérales',
+    vue: 'face',
+    charge: 'halteres',
+    depart: { hanche: [110, 112], buste: -90, pieds: [[100, 189.8], [120, 189.8]], bras: [[100, 98], [80, 82]] },
+    arrivee: { bras: [[178, 172], [2, 8]] },
+    points: ['Coudes légèrement fléchis, buste immobile', 'Monte les bras sur les côtés jusqu\'aux épaules, pas plus haut', 'Redescends lentement, sans élan'],
+  })],
+  dips: [demo({
+    nom: 'Dips',
+    decor: [{ l: [60, 103, 150, 103] }, { l: [70, 103, 70, 190], e: 5 }, { l: [140, 103, 140, 190], e: 5 }],
+    plis: { coudes: [-1, -1] },
+    depart: { hanche: [95.7, 95.3], buste: -80, mains: [[108, 100], [106, 100]], jambes: [[95, 168], [100, 172]], orteils: [175, 178] },
+    arrivee: { hanche: [95.6, 121.1], buste: -70 },
+    points: ['Buste un peu penché en avant pour les pectoraux', 'Descends jusqu\'aux bras à 90°, épaules basses', 'Remonte en poussant, sans verrouiller les coudes'],
+  }), DEMO_POUSSEE_POULIE],
+  'extension-triceps-poulie': [{ ...DEMO_POUSSEE_POULIE, nom: 'Extension triceps poulie haute' }],
+  'pec-machine': [demo({
+    nom: 'Presse pectorale assise',
+    decor: [{ r: [70, 148, 44, 8] }, { l: [80, 150, 78, 62], e: 9 }, { l: [92, 156, 92, 190] }, { l: [168, 20, 168, 190], e: 7 }],
+    levier: { pivot: [168, 28], vers: 'main' },
+    charge: 'poignee',
+    plis: { coudes: [1, 1] },
+    depart: { hanche: [92, 140], buste: -90, pieds: [[132, 188], [126, 188]], mains: [[110, 96], [107, 96]] },
+    arrivee: { mains: [[142, 96], [139, 96]] },
+    trace: 'main',
+    points: ['Règle le siège : poignées à hauteur du milieu des pectoraux', 'Dos collé au dossier, pousse devant toi', 'Reviens lentement jusqu\'à sentir l\'étirement'],
+  })],
+  'tirage-vertical': [demo({
+    nom: 'Tirage vertical',
+    decor: [{ r: [80, 148, 42, 8] }, { l: [100, 156, 100, 190] }, { c: [128, 124, 7] }, { l: [112, 0, 112, 4], e: 4 }],
+    cable: { ancre: [104, 4], mains: [0] },
+    charge: 'poignee',
+    plis: { coudes: [1, 1] },
+    depart: { hanche: [100, 140], buste: -100, pieds: [[140, 188], [134, 188]], mains: [[104, 42], [102, 42]] },
+    arrivee: { buste: -104, mains: [[108, 84], [106, 84]] },
+    trace: 'main',
+    points: ['Buste légèrement penché en arrière, poitrine sortie', 'Tire la barre vers le haut de la poitrine, coudes vers le bas', 'Remonte en contrôlant jusqu\'aux bras tendus'],
+  })],
+  rowing: [demo({
+    nom: 'Rowing barre',
+    charge: 'barre',
+    plis: { coudes: [-1, -1] },
+    depart: { hanche: [84, 114], buste: -35, tete: -30, pieds: [[100, 188], [94, 188]], mains: [[124, 138], [121, 138]] },
+    arrivee: { mains: [[110, 112], [107, 112]] },
+    trace: 'main',
+    points: ['Genoux fléchis, dos droit, buste penché vers 45°', 'Tire la barre vers le nombril en serrant les omoplates', 'Redescends bras tendus sans arrondir le dos'],
+  }), demo({
+    nom: 'Rowing poulie basse',
+    decor: DECOR_POULIE_BASSE,
+    cable: { ancre: [178, 170], mains: [0] },
+    charge: 'poignee',
+    plis: { coudes: [-1, -1] },
+    depart: { ...ASSIS_BAS, buste: -65, mains: [[140, 128], [137, 128]] },
+    arrivee: { buste: -95, mains: [[86, 132], [83, 132]] },
+    trace: 'main',
+    points: ['Genoux légèrement fléchis, dos droit', 'Tire la poignée vers le ventre, omoplates serrées', 'Reviens en laissant les bras s\'allonger, sans arrondir le dos'],
+  })],
+  rdl: [demo({
+    nom: 'Soulevé de terre roumain',
+    charge: 'barre',
+    depart: { hanche: [96, 112], buste: -90, tete: -90, pieds: [[100, 188], [94, 188]], mains: [[100, 114], [97, 114]] },
+    arrivee: { hanche: [70, 118], buste: -25, tete: -15, mains: [[108, 148], [105, 148]] },
+    trace: 'main',
+    points: ['Genoux légèrement fléchis et fixes', 'Pousse les fesses en arrière, barre collée aux jambes', 'Descends jusqu\'à mi-tibia en gardant le dos droit, puis remonte'],
+  })],
+  'face-pull': [demo({
+    nom: 'Face pull',
+    decor: [{ l: [198, 10, 198, 190], e: 7 }],
+    cable: { ancre: [192, 52], mains: [0] },
+    charge: 'poignee',
+    plis: { coudes: [-1, -1] },
+    depart: { hanche: [96, 112], buste: -92, pieds: [[104, 188], [90, 188]], mains: [[144, 56], [141, 56]] },
+    arrivee: { mains: [[106, 46], [103, 46]] },
+    trace: 'main',
+    points: ['Poulie à hauteur du visage, corde en main', 'Tire vers le front en écartant les mains, coudes hauts', 'Serre l\'arrière des épaules 1 s, puis reviens lentement'],
+  })],
+  'curl-barre': [demo({
+    nom: 'Curl biceps barre',
+    charge: 'barre',
+    depart: { ...DEBOUT, bras: [[92, 88], [94, 90]] },
+    arrivee: { bras: [[84, -72], [86, -70]] },
+    trace: 'main',
+    points: ['Coudes collés au corps, ils ne bougent pas', 'Monte la barre sans balancer le buste', 'Redescends lentement jusqu\'aux bras tendus'],
+  })],
+  'curl-marteau': [demo({
+    nom: 'Curl marteau',
+    charge: 'halteres',
+    depart: { ...DEBOUT, bras: [[92, 88], [94, 90]] },
+    arrivee: { bras: [[84, -72], [86, -70]] },
+    trace: 'main',
+    points: ['Pouces vers le haut, prise neutre', 'Coudes fixes le long du corps', 'Monte et descends en contrôle, sans élan'],
+  })],
+  'pistol-squat': [demo({
+    nom: 'Pistol squat',
+    depart: { hanche: [96, 112], buste: -90, pieds: [[100, 188], null], jambes: [null, [50, 55]], orteils: [0, 40], bras: [[0, 4], [2, 6]] },
+    arrivee: { hanche: [84, 170], buste: -58, jambes: [null, [-4, -2]], orteils: [0, -92], bras: [[-10, -8], [-8, -6]] },
+    points: ['Bras tendus devant pour l\'équilibre', 'Descends lentement sur une jambe, l\'autre tendue devant', 'Talon au sol, genou dans l\'axe du pied, remonte en poussant'],
+  })],
+  presse: [demo({
+    nom: 'Presse à cuisses',
+    decor: [{ l: [100, 156, 184, 72], e: 10 }, { l: [84, 164, 24, 104], e: 10 }, { l: [80, 165, 104, 160], e: 10 },
+      { l: [36, 118, 36, 190] }, { l: [100, 162, 100, 190] }, { l: [178, 80, 178, 190] }],
+    plateau: { normale: -45 },
+    plis: { genoux: [-1, -1] },
+    depart: { hanche: [70, 150], buste: -135, tete: -125, mains: [[78, 148], [75, 148]], pieds: [[126, 96], [123, 99]], orteils: [-135, -135] },
+    arrivee: { pieds: [[100, 122], [97, 125]] },
+    trace: 'pied',
+    points: ['Pieds à largeur d\'épaules au milieu du plateau', 'Descends jusqu\'à 90° aux genoux, le bas du dos reste collé', 'Pousse sans verrouiller les genoux en haut'],
+  })],
+  'fentes-bulgares': [demo({
+    nom: 'Fentes bulgares',
+    decor: [{ r: [16, 150, 58, 9] }, { l: [24, 159, 24, 190] }, { l: [66, 159, 66, 190] }],
+    charge: 'halteres',
+    plis: { genoux: [-1, -1] },
+    depart: { hanche: [100, 114], buste: -85, pieds: [[120, 188], [54, 143]], orteils: [0, 170], bras: [[92, 90], [90, 90]] },
+    arrivee: { hanche: [92, 150], buste: -82 },
+    trace: 'pied',
+    points: ['Pied arrière posé sur le banc, pied avant loin devant', 'Descends droit, le genou arrière vers le sol', 'Pousse dans le talon avant pour remonter'],
+  })],
+  'leg-extension': [demo({
+    nom: 'Leg extension',
+    decor: [{ r: [56, 148, 62, 8] }, { l: [62, 150, 56, 82], e: 9 }, { l: [86, 156, 86, 190] }],
+    levier: { pivot: [120, 140], vers: 'pied' },
+    rouleau: true,
+    depart: { hanche: [80, 140], buste: -95, mains: [[96, 142], [93, 142]], jambes: [[0, 85], [2, 85]] },
+    arrivee: { jambes: [[0, -5], [2, -3]] },
+    trace: 'pied',
+    points: ['Genoux alignés avec l\'axe de la machine', 'Tends les jambes et serre les quadriceps 1 s en haut', 'Redescends lentement, sans laisser tomber la charge'],
+  })],
+  'leg-curl': [demo({
+    nom: 'Leg curl',
+    decor: [{ r: [36, 150, 128, 9] }, { l: [50, 159, 50, 190] }, { l: [150, 159, 150, 190] }, { c: [36, 164, 3] }],
+    levier: { pivot: [140, 143], vers: 'pied' },
+    rouleau: true,
+    plis: { coudes: [1, 1] },
+    depart: { hanche: [100, 143], buste: 180, tete: 186, mains: [[38, 163], [35, 163]], jambes: [[0, 2], [1, 3]], orteils: [92, 92] },
+    arrivee: { jambes: [[0, -110], [1, -108]], orteils: [-20, -18] },
+    trace: 'pied',
+    points: ['Hanches collées au banc', 'Ramène les talons vers les fesses', 'Redescends en 2-3 s, sans décoller le bassin'],
+  })],
+  mollets: [demo({
+    nom: 'Extension mollets',
+    decor: [{ r: [101, 176, 50, 16] }],
+    charge: 'halteres',
+    depart: { hanche: [96, 105], buste: -90, pieds: [[96.2, 181.5], [94.2, 181.5]], orteils: [-30, -30], bras: [[90, 90], [88, 90]] },
+    arrivee: { hanche: [98, 91], pieds: [[98, 167.6], [96, 167.6]], orteils: [40, 40] },
+    points: ['Avant du pied sur la marche, talons dans le vide', 'Monte le plus haut possible sur la pointe, tiens 1 s', 'Descends sous la marche pour bien étirer'],
+  })],
+  'abdos-poulie': [demo({
+    nom: 'Abdos poulie',
+    decor: [{ l: [182, 0, 182, 190], e: 7 }],
+    cable: { ancre: [174, 8], mains: [0] },
+    charge: 'poignee',
+    plis: { coudes: [1, 1] },
+    depart: { hanche: [100, 148], buste: -80, tete: -84, pieds: [[60, 188], [56, 188]], orteils: [180, 180], mains: [[116, 82], [114, 82]] },
+    arrivee: { hanche: [94, 146], buste: -30, tete: 25, mains: [[150, 118], [148, 118]] },
+    points: ['À genoux, corde de chaque côté de la tête', 'Enroule le buste vers les genoux en contractant les abdos', 'Les hanches ne bougent pas : ce sont les abdos qui tirent'],
+  })],
+  'dev-halteres': [demo({
+    nom: 'Développé haltères',
+    decor: BANC_PLAT,
+    charge: 'halteres',
+    plis: { coudes: [1, 1], genoux: [-1, -1] },
+    depart: { ...ALLONGE, mains: [[66, 90], [63, 90]] },
+    arrivee: { mains: [[78, 122], [75, 122]] },
+    trace: 'main',
+    points: ['Omoplates serrées, pieds au sol', 'Descends les haltères sur les côtés de la poitrine', 'Pousse en rapprochant les haltères au-dessus du torse'],
+  })],
+  'ecarte-poulie': [demo({
+    nom: 'Écarté poulie',
+    vue: 'face',
+    decor: [{ l: [8, 10, 8, 190], e: 7 }, { l: [212, 10, 212, 190], e: 7 }],
+    cable: { ancres: [[14, 26], [206, 26]], mains: [0, 1] },
+    charge: 'poignee',
+    plis: { coudes: [1, -1] },
+    depart: { hanche: [110, 112], buste: -90, pieds: [[100, 189.8], [120, 189.8]], mains: [[52, 72], [168, 72]] },
+    arrivee: { mains: [[106, 114], [114, 114]] },
+    points: ['Poulies en haut, un pas en avant', 'Coudes légèrement fléchis et fixes', 'Ramène les mains devant le bassin en serrant les pectoraux'],
+  }), demo({
+    nom: 'Développé incliné barre',
+    decor: BANC_INCLINE,
+    charge: 'barre',
+    depart: { ...ASSIS_INCLINE, mains: [[84, 62], [81, 62]] },
+    arrivee: { mains: [[92, 102], [89, 102]] },
+    trace: 'main',
+    points: ['Banc à 30-45°, omoplates serrées', 'Descends la barre sur le haut des pectoraux', 'Pousse à la verticale, coudes sous la barre'],
+  })],
+  'tirage-horizontal-uni': [demo({
+    nom: 'Tirage horizontal unilatéral',
+    decor: DECOR_POULIE_BASSE,
+    cable: { ancre: [178, 170], mains: [0] },
+    charge: 'poignee',
+    plis: { coudes: [-1, -1] },
+    depart: { ...ASSIS_BAS, buste: -66, mains: [[140, 128], [104, 146]] },
+    arrivee: { buste: -94, mains: [[86, 132], [104, 146]] },
+    trace: 'main',
+    points: ['Un bras tire, l\'autre main posée sur la cuisse', 'Tire la poignée vers la hanche, coude près du corps', 'Laisse l\'épaule avancer au retour pour bien étirer le dos'],
+  })],
+  'elevations-frontales': [demo({
+    nom: 'Élévations frontales',
+    charge: 'halteres',
+    depart: { ...DEBOUT, bras: [[88, 88], [86, 88]] },
+    arrivee: { bras: [[-4, -4], [-2, -2]] },
+    trace: 'main',
+    points: ['Bras presque tendus, buste immobile', 'Monte devant toi jusqu\'à hauteur des épaules', 'Redescends lentement, sans élan'],
+  })],
+  'tractions-supination': [demo({
+    nom: 'Tractions supination',
+    decor: [{ l: [118, 18, 196, 18], e: 5 }, { l: [196, 12, 196, 190], e: 7 }, { c: [118, 22, 4] }],
+    plis: { coudes: [-1, -1] },
+    depart: { hanche: [118.2, 123.8], buste: -95, mains: [[118, 26], [115, 26]], jambes: [[100, 200], [104, 205]], orteils: [200, 205] },
+    arrivee: { hanche: [112.3, 81.3], buste: -100 },
+    points: ['Paumes vers toi, mains à largeur d\'épaules', 'Tire jusqu\'au menton au-dessus de la barre', 'Redescends jusqu\'aux bras tendus, sans balancer'],
+  })],
+  'curl-incline': [demo({
+    nom: 'Curl incliné',
+    decor: [{ r: [86, 147, 44, 8] }, { l: [97, 154, 52, 74], e: 9 }, { l: [110, 155, 110, 190] }, { l: [62, 96, 78, 190] }],
+    charge: 'halteres',
+    depart: { hanche: [100, 140], buste: -120, tete: -110, pieds: [[146, 188], [140, 188]], bras: [[96, 96], [94, 94]] },
+    arrivee: { bras: [[96, -72], [94, -70]] },
+    trace: 'main',
+    points: ['Banc incliné à 45-60°, bras pendants derrière le buste', 'Monte sans avancer les coudes', 'Redescends jusqu\'aux bras tendus pour l\'étirement'],
+  })],
+};
+
+// Exercices ajoutés à la main : démo devinée d'après le nom
+const DEMOS_PAR_MOT = [
+  [/curl.*marteau/i, 'curl-marteau'], [/curl.*inclin/i, 'curl-incline'], [/curl/i, 'curl-barre'],
+  [/couché|couche/i, 'dev-couche'], [/inclin/i, 'dev-incline-halteres'], [/militaire/i, 'militaire-ou-laterales'],
+  [/latéral|lateral/i, 'militaire-ou-laterales'], [/frontal/i, 'elevations-frontales'], [/dips/i, 'dips'],
+  [/triceps/i, 'extension-triceps-poulie'], [/écarté|ecarte|pec/i, 'ecarte-poulie'],
+  [/tirage vertical|pulldown/i, 'tirage-vertical'], [/traction/i, 'tractions-supination'],
+  [/tirage horizontal/i, 'tirage-horizontal-uni'], [/rowing/i, 'rowing'], [/roumain|rdl|soulevé/i, 'rdl'],
+  [/face pull/i, 'face-pull'], [/pistol/i, 'pistol-squat'], [/presse/i, 'presse'], [/fente/i, 'fentes-bulgares'],
+  [/leg extension/i, 'leg-extension'], [/leg curl/i, 'leg-curl'], [/mollet/i, 'mollets'], [/abdo|crunch/i, 'abdos-poulie'],
+];
+
+/** Démos d'un exercice (plusieurs pour « A ou B »), ou null si on n'en a pas. */
+function demosDe(exercice) {
+  if (DEMOS[exercice.id]) return DEMOS[exercice.id];
+  const trouve = DEMOS_PAR_MOT.find(([motif]) => motif.test(exercice.nom));
+  return trouve ? DEMOS[trouve[1]] : null;
+}
+
+/** Remplit le panneau de démo : choix du mouvement, mannequin animé, muscles, points clés. */
+function remplirDemo(panneau, exercice, i) {
+  const demos = demosDe(exercice);
+  const variantes = etat.variantesDemo || (etat.variantesDemo = {});
+  const choix = Math.min(variantes[exercice.id] || 0, demos.length - 1);
+  const choisie = demos[choix];
+  const blocs = [];
+
+  if (demos.length > 1) {
+    const choixMouvement = creer('fieldset', 'formulaire__choix demo__variantes');
+    choixMouvement.append(creer('legend', 'visuellement-cache', 'Mouvement à voir'),
+      ...demos.map((d, k) => creerPastille('radio', `variante-${i}`, String(k), d.nom, k === choix)));
+    blocs.push(choixMouvement);
+  }
+
+  const figure = creer('figure', 'demo__figure');
+  if (mouvementReduit.matches) {
+    // « Réduire les animations » : départ et arrivée côte à côte, sans mouvement
+    figure.classList.add('demo__figure--fixe');
+    for (const [moment, libelle] of [[0, 'Départ'], [1, 'Arrivée']]) {
+      const cadre = creer('div', 'demo__cadre');
+      cadre.append(creerScene(choisie, moment).svg, creer('span', 'demo__moment', libelle));
+      figure.append(cadre);
+    }
+  } else {
+    const { svg, parties } = creerScene(choisie, 0);
+    figure.append(svg);
+    animerDemo(svg, choisie, parties);
+  }
+  figure.append(creer('figcaption', 'visuellement-cache', `Démo animée : ${choisie.nom}.`));
+
+  const muscles = (choisie.muscles || musclesDe(exercice)).map((m) => NOMS_MUSCLES[m]).filter(Boolean);
+  if (muscles.length) blocs.push(figure, creer('p', 'demo__muscles', `Travaille : ${muscles.join(' · ')}`));
+  else blocs.push(figure);
+  const points = creer('ul', 'demo__points');
+  points.append(...choisie.points.map((texte) => creer('li', '', texte)));
+  blocs.push(points);
+  panneau.replaceChildren(...blocs);
+}
+
+/** Ouvre ou ferme la démo d'un exercice de la séance. */
+function basculerDemo(bouton) {
+  const i = Number(bouton.dataset.demo);
+  const panneau = document.getElementById(`demo-${i}`);
+  const exercice = trouverExerciceDansProgramme(etat.donnees.enCours.exercices[i].exerciceId);
+  const ouvrir = panneau.hidden;
+  panneau.hidden = !ouvrir;
+  bouton.setAttribute('aria-expanded', String(ouvrir));
+  if (ouvrir && exercice) remplirDemo(panneau, exercice, i);
 }
 
 /* ---------- Actions ---------- */
@@ -3923,6 +4513,13 @@ ecranSeance.addEventListener('change', (evenement) => {
   else if (evenement.target.name && evenement.target.name.startsWith('barre-')) {
     etat.barre = Number(evenement.target.value);
     majAideCharge(Number(evenement.target.name.slice(6)));
+  } else if (evenement.target.name && evenement.target.name.startsWith('variante-')) {
+    // Exercice « A ou B » : on montre l'autre mouvement
+    const i = Number(evenement.target.name.slice(9));
+    const exercice = trouverExerciceDansProgramme(etat.donnees.enCours.exercices[i].exerciceId);
+    if (!exercice) return;
+    (etat.variantesDemo || (etat.variantesDemo = {}))[exercice.id] = Number(evenement.target.value);
+    remplirDemo(document.getElementById(`demo-${i}`), exercice, i);
   }
 });
 
@@ -3941,6 +4538,11 @@ ecranSeance.addEventListener('click', (evenement) => {
   const aide = evenement.target.closest('[data-aide]');
   if (aide) {
     basculerAideCharge(aide);
+    return;
+  }
+  const demoBouton = evenement.target.closest('[data-demo]');
+  if (demoBouton) {
+    basculerDemo(demoBouton);
     return;
   }
   const action = evenement.target.closest('[data-action]');

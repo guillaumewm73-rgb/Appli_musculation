@@ -2373,6 +2373,189 @@ body.avec-minuteur .page {
   color: var(--couleur-texte-secondaire);
 }
 
+/* ---------- Démos de mouvement (mannequin animé) ---------- */
+.exercice__cible-ligne {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-8);
+  margin-top: var(--esp-4);
+}
+
+.exercice__cible-ligne .exercice__cible {
+  margin-top: 0;
+}
+
+.bouton-demo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--esp-16) 0 var(--esp-12);
+}
+
+.bouton-demo[aria-expanded="true"] {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.demo__variantes .pastille {
+  min-height: 44px;
+  padding: var(--esp-8) var(--esp-16);
+  font-size: var(--texte-petit);
+}
+
+.demo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-12);
+  margin-top: var(--esp-12);
+  padding: var(--esp-12);
+  border-radius: var(--rayon-carte);
+  background: rgb(255 255 255 / 0.04);
+  animation: message-entree 0.3s var(--courbe);
+}
+
+/* Scène : fond plus sombre, petite lueur de la couleur de la séance au sol */
+.demo__figure {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    radial-gradient(70% 45% at 50% 100%, rgb(255 255 255 / 0.07), transparent 70%),
+    #14141c;
+}
+
+.demo__figure--fixe {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.demo__scene {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 280px;
+}
+
+.demo__moment {
+  display: block;
+  padding-bottom: var(--esp-8);
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte-secondaire);
+  text-align: center;
+}
+
+.demo__sol {
+  stroke: rgb(255 255 255 / 0.14);
+  stroke-width: 2;
+}
+
+.demo__meuble {
+  fill: none;
+  stroke: #3a3a50;
+  stroke-linecap: round;
+}
+
+.demo__meuble--plein {
+  fill: #33334a;
+  stroke: none;
+}
+
+/* Mannequin : côté proche ivoire, côté loin plus sombre (profondeur) */
+.os {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.os--pres {
+  stroke: var(--couleur-texte);
+}
+
+.os--loin {
+  stroke: #767688;
+}
+
+.os--buste { stroke-width: 16; }
+.os--cou { stroke-width: 8; }
+.os--bras { stroke-width: 10; }
+.os--avant-bras { stroke-width: 8.5; }
+.os--cuisse { stroke-width: 13; }
+.os--jambe { stroke-width: 10.5; }
+.os--pied { stroke-width: 6; }
+
+.os--buste-face {
+  fill: var(--couleur-texte);
+  stroke: var(--couleur-texte);
+  stroke-width: 10;
+  stroke-linejoin: round;
+}
+
+.os-tete {
+  fill: var(--couleur-texte);
+}
+
+/* Matériel : la charge prend la couleur de la séance */
+.demo__charge {
+  fill: var(--accent);
+  stroke: var(--accent-clair);
+  stroke-width: 2;
+}
+
+.demo__charge--barre {
+  fill-opacity: 0.35;
+  stroke-width: 3;
+}
+
+.demo__charge--loin {
+  opacity: 0.55;
+}
+
+.demo__cable {
+  stroke: #a3a3b4;
+  stroke-width: 1.5;
+}
+
+.demo__poulie {
+  fill: #14141c;
+  stroke: #a3a3b4;
+  stroke-width: 2.5;
+}
+
+.demo__levier {
+  stroke: #4a4a64;
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.demo__plateau {
+  stroke: var(--accent-clair);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+/* Trajet à suivre, en pointillés */
+.demo__trace {
+  fill: none;
+  stroke: var(--accent-clair);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+  opacity: 0.6;
+}
+
+.demo__muscles {
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+}
+
+.demo__points {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: var(--esp-20);
+  font-size: var(--texte-petit);
+  line-height: 1.4;
+}
+
 /* ---------- Effets au défilement (navigateurs qui savent les lier au scroll) ---------- */
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: scroll()) {

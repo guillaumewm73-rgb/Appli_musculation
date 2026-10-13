@@ -47,6 +47,8 @@ Règles v3 :
 - **Au défilement** (navigateurs récents) : le halo monte et pâlit, les cartes de l'accueil reculent en sortant par le haut.
 - **Réduire les animations** : pas de transition d'écran, pas d'onde, pas de gerbe, chiffres affichés directement.
 
+**Démos de mouvement** : mannequin de profil (de face pour les élévations latérales et l'écarté), traits arrondis épais, côté proche ivoire `#ededf3`, côté loin `#767688` pour la profondeur, machines et bancs en `#33334a`, charge (disque, haltère, poignée) dans la couleur de la séance, câbles en gris clair, trajet de la charge en pointillés. Scène sur fond `#14141c`, recadrée sur le mouvement. Aller 1 s, pause 0,35 s, retour 1,15 s, pause 0,4 s.
+
 ## Règles appliquées (v1)
 
 | Mercury | Dans l'appli |

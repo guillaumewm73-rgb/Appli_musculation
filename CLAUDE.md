@@ -97,6 +97,12 @@ Analyse du style des applis de référence (détail dans `DESIGN.md`), puis :
 - **Bilan de fin de séance** (remplace le simple message) : anneau des séries faites, durée, volume, séries, records, comparaison du volume avec la fois d'avant, confettis.
 - Aucune donnée nouvelle : records et bilan sont calculés depuis l'historique.
 
+## Démos de mouvement (13/10/2026, demandées par Guillaume)
+- Bouton « Démo » sur chaque exercice de la séance : mannequin animé en SVG fait maison (pas de vidéo, rien à télécharger, marche hors ligne), muscles travaillés et 3 points clés.
+- Une démo = position de départ + position d'arrivée + matériel (barre, haltères, poulie, banc, machine) ; l'appli anime entre les deux et trace le trajet de la charge en pointillés.
+- Exercices « A ou B » : les deux mouvements, au choix. Exercice ajouté à la main : démo devinée d'après le nom, sinon pas de bouton.
+- « Réduire les animations » : départ et arrivée côte à côte, sans mouvement.
+
 ## Fonctionnalités — version 2 (plus tard, ne pas faire d'office)
 - Notes par séance (fatigue, sommeil, douleurs).
 
