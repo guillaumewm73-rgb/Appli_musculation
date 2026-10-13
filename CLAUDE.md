@@ -113,6 +113,11 @@ Décisions validées (étape 2) :
 - Tout est stocké dans une seule clé `suivi_donnees` (programme + historique).
 - `unite` : `"reps"` ou `"s"` (gainage). `poidsDuCorps` : le poids saisi = lest ajouté. `note` : précision courte (« par jambe »). `repsMin`/`repsMax` à `null` = « max ».
 
+Décisions validées (étape 3) :
+- L'historique garde seulement les identifiants (`seanceId`, `exerciceId`), pas de copie des noms.
+- Exercice jamais fait : poids de départ pré-rempli, reps vides (objectif affiché en gris).
+- Séance en cours : champ optionnel `enCours` dans `suivi_donnees` (même format qu'une entrée d'historique, plus `debut` et `derniereAction` en ms). Enregistrée à chaque saisie, reprise automatiquement à l'ouverture. Durée = du début à la dernière saisie.
+
 ## Étapes de développement
 1. Structure du projet + manifest + service worker + page d'accueil vide qui s'installe.
 2. Chargement du programme de départ + écran d'accueil.

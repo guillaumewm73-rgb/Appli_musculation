@@ -28,6 +28,7 @@ Les jetons (tokens) sont en tête de `style.css`.
 - Slate `#70707d` (3,6:1 sur onyx) : bordures uniquement, jamais du texte.
 - Focus visible : contour ivoire 2 px, décalé de 2 px. Jamais supprimé.
 - Champs : texte 16 px minimum (sinon l'iPhone zoome à la saisie). Chaque champ a un label.
+- Valeur saisie : ivoire 18 px, graisse 480. Indication vide (objectif « 8-10 », « kg ») : ash 14 px, graisse 400, pour ne jamais les confondre.
 
 ---
 
