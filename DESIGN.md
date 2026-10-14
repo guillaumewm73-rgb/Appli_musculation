@@ -49,6 +49,16 @@ Règles v3 :
 
 **Démos de mouvement** : mannequin de profil (de face pour les élévations latérales et l'écarté), traits arrondis épais, côté proche ivoire `#ededf3`, côté loin `#767688` pour la profondeur, machines et bancs en `#33334a`, charge (disque, haltère, poignée) dans la couleur de la séance, câbles en gris clair, trajet de la charge en pointillés. Scène sur fond `#14141c`, recadrée sur le mouvement. Aller 1 s, pause 0,35 s, retour 1,15 s, pause 0,4 s.
 
+## v4 — Finitions (14/10/2026, « la plus belle »)
+
+- **Accueil** : date en petites capitales au-dessus du titre (« Mercredi · 14/10/2026 »), salutation selon l'heure (Bonjour / Bonsoir). Cartes de séance : 3 muscles principaux en pastilles neutres, date de la dernière fois.
+- **Relief** : liseré de lumière en haut des cartes (sombre), ombre douce (clair) — jeton `--relief`.
+- **Chiffres arrondis** (`ui-rounded`, SF Pro Rounded sur iPhone) pour les chiffres lus d'un coup d'œil : anneaux, stats, minuteur, saisies.
+- **Boutons secondaires tonals** : fond doux sans contour (Démo, Échauffement, Appliquer…), l'action principale reste le seul dégradé.
+- **Séance** : mini-anneau de séries par exercice (coche blanche sur la couleur quand c'est fini) ; l'exercice en cours a un voile de la couleur de la séance en haut de sa carte ; minuteur circulaire.
+- **Historique** : calendrier du mois (jours d'entraînement en dégradé de la séance, aujourd'hui entouré, total du mois), chaque jour ouvre sa séance.
+- **Tuiles** : mini-tendances décoratives (séances par semaine, volume hebdo, poids) — trait discret de 2 px, la période actuelle dans la couleur d'accent ; la valeur reste écrite en texte.
+
 ## Mode clair (au choix, bouton soleil/lune de l'accueil)
 
 Même structure que le thème sombre, valeurs inversées (jetons `:root[data-theme="clair"]` dans `style.css`) :

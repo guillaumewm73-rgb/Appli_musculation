@@ -37,10 +37,12 @@
   --os-loin: #767688;
   --cable: #a3a3b4;
   --levier: #4a4a64;
+  --relief: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.25); /* liseré de lumière en haut des cartes */
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23ededf3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
   /* Police système : rien à télécharger, l'appli reste hors ligne */
   --police: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --police-chiffres: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; /* chiffres sportifs (iPhone) */
   --graisse-normale: 400;
   --graisse-accent: 480;                /* Plafond : jamais de gras 600-700 */
 
@@ -140,6 +142,7 @@
   --os-loin: #9a9aae;
   --cable: #7c7c90;
   --levier: #aeb0c3;
+  --relief: 0 1px 2px rgb(24 24 48 / 0.05), 0 12px 32px -20px rgb(24 24 48 / 0.28); /* ombre douce sous les cartes */
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%231b1b26' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
@@ -1294,18 +1297,64 @@ body.defile .barre__titre {
 }
 
 .exercice__compte {
+  position: relative;
+  display: grid;
   flex: none;
-  padding: var(--esp-4) var(--esp-12);
-  border-radius: var(--rayon-pilule);
-  background: rgb(var(--voile) / 0.08);
-  font-size: var(--texte-petit);
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  font-family: var(--police-chiffres);
+  font-size: var(--texte-legende);
+  font-weight: var(--graisse-accent);
   font-variant-numeric: tabular-nums;
-  transition: background-color 0.3s;
 }
 
-.exercice--termine .exercice__compte {
-  background: var(--accent-degrade);
+.exercice__compte svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.compte__piste,
+.compte__arc {
+  fill: none;
+  stroke-width: 4;
+}
+
+.compte__piste {
+  stroke: rgb(var(--voile) / 0.12);
+}
+
+.compte__arc {
+  stroke: var(--accent);
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: 100;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s var(--courbe), fill 0.3s;
+}
+
+/* Exercice terminé : l'anneau se remplit de la couleur, coche blanche au centre */
+.exercice--termine .compte__arc {
+  fill: var(--accent);
+}
+
+.compte__texte {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.exercice--termine .compte__texte {
   color: var(--couleur-sur-action);
+}
+
+.compte__texte svg {
+  position: static;
+  width: 20px;
+  height: 20px;
+  transform: none;
 }
 
 /* Série cochée : les champs s'effacent un peu pour mettre en avant la suivante */
@@ -1778,7 +1827,7 @@ body.defile .barre__titre {
   gap: var(--esp-12);
   max-width: 640px;
   margin: 0 auto;
-  padding: var(--esp-12) var(--esp-12) var(--esp-12) var(--esp-20);
+  padding: var(--esp-12) var(--esp-12) var(--esp-12) var(--esp-12);
   overflow: hidden;
   border: 1px solid rgb(var(--voile) / 0.1);
   border-radius: 24px;
@@ -1790,20 +1839,36 @@ body.defile .barre__titre {
 }
 
 /* Jauge du temps restant, le long du bord haut */
-.minuteur__jauge {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
+.minuteur__anneau {
+  flex: none;
+  width: 48px;
+  height: 48px;
 }
 
-.minuteur__jauge span {
+.minuteur__anneau svg {
   display: block;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-fort), var(--accent-clair));
-  transition: width 0.25s linear;
+  transform: rotate(-90deg);
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+.minuteur__piste,
+.minuteur__arc {
+  fill: none;
+  stroke-width: 5;
+}
+
+.minuteur__piste {
+  stroke: rgb(var(--voile) / 0.12);
+}
+
+/* Le temps restant se vide dans le sens des aiguilles d'une montre */
+.minuteur__arc {
+  stroke: var(--accent);
+  stroke-dasharray: 100 100;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
 }
 
 .minuteur__textes {
@@ -2946,6 +3011,247 @@ body.avec-minuteur .page {
 @keyframes revele-theme {
   from { clip-path: circle(0 at var(--theme-x, 50%) var(--theme-y, 0)); }
   to { clip-path: circle(var(--theme-r, 150%) at var(--theme-x, 50%) var(--theme-y, 0)); }
+}
+
+/* =========================================================
+   v4 : finitions (demande de Guillaume : « la plus belle »)
+   ========================================================= */
+
+/* Relief : liseré de lumière (sombre) ou ombre douce (clair) */
+.carte,
+.seance,
+.tuile,
+.stats--bilan .stat {
+  box-shadow: var(--relief);
+}
+
+/* Chiffres arrondis (SF Pro Rounded sur iPhone) pour tout ce qui se lit d'un coup d'œil */
+.anneau__nombre,
+.stat__chiffre,
+.minuteur__temps,
+.barre__compteur,
+.serie .champ,
+.serie__numero,
+.pastille-seance,
+.lecture,
+.calendrier__jour {
+  font-family: var(--police-chiffres);
+}
+
+/* Date au-dessus du titre de l'accueil ; disparaît quand la barre se compacte */
+.barre__surtitre {
+  max-width: var(--largeur-max);
+  margin: 0 auto calc(-1 * var(--esp-4));
+  font-size: var(--texte-legende);
+  font-weight: var(--graisse-accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--couleur-texte-secondaire);
+  transition: opacity 0.2s;
+}
+
+body.defile .barre__surtitre {
+  display: none;
+}
+
+/* Muscles d'une séance : petites pastilles neutres sous le nom */
+.seance {
+  column-gap: var(--esp-12);
+  padding: var(--esp-20);
+}
+
+.seance__muscles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-4);
+  margin: 2px 0;
+}
+
+.puce-muscle {
+  padding: 1px 7px;
+  border-radius: var(--rayon-pilule);
+  background: rgb(var(--voile) / 0.08);
+  font-size: var(--texte-legende);
+  color: var(--couleur-texte);
+}
+
+/* Boutons secondaires « tonals » : fond doux sans contour, la séance respire */
+.bouton-mini {
+  border-color: transparent;
+  background: rgb(var(--voile) / 0.09);
+  transition: background-color 0.2s, transform 0.15s var(--courbe);
+}
+
+.bouton-mini:active {
+  background: rgb(var(--voile) / 0.16);
+  transform: scale(0.97);
+}
+
+.bouton-mini:disabled {
+  background: transparent;
+}
+
+.bouton-demo[aria-expanded="true"],
+.bouton-mini[aria-expanded="true"] {
+  background: rgb(var(--voile) / 0.18);
+}
+
+/* Exercice en cours : un voile de la couleur de la séance en haut de la carte */
+.exercice {
+  transition: background-color 0.4s;
+}
+
+.exercice--actuel {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 13%, transparent) 0%, transparent 140px),
+    var(--couleur-carte);
+}
+
+.exercice--actuel .compte__piste {
+  stroke: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Mini-tendances des tuiles : trait discret, l'actuel dans la couleur d'accent */
+.tuile__tendance {
+  position: absolute;
+  top: var(--esp-20);
+  right: var(--esp-16);
+  width: 72px;
+  height: 32px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tendance__ligne {
+  fill: none;
+  stroke: var(--couleur-texte-secondaire);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.6;
+}
+
+.tendance__point {
+  fill: var(--accent);
+  stroke: var(--couleur-carte);
+  stroke-width: 2;
+}
+
+.tendance__barre {
+  fill: var(--couleur-texte-secondaire);
+  opacity: 0.45;
+}
+
+.tendance__barre--vide {
+  opacity: 0.2;
+}
+
+.tendance__barre--actuelle {
+  fill: var(--accent);
+  opacity: 1;
+}
+
+/* ---------- Calendrier de l'historique ---------- */
+.calendrier {
+  padding: var(--esp-16) var(--esp-12) var(--esp-20);
+}
+
+.calendrier__haut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--esp-8);
+}
+
+.calendrier__haut .bouton-icone {
+  margin: 0;
+}
+
+.calendrier__titre {
+  font-size: var(--texte-grand);
+}
+
+.calendrier__fleche:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.calendrier__grille {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 2px;
+  table-layout: fixed;
+}
+
+.calendrier__grille th {
+  padding-bottom: var(--esp-4);
+  font-size: var(--texte-legende);
+  font-weight: var(--graisse-normale);
+  color: var(--couleur-texte-secondaire);
+}
+
+.calendrier__grille td {
+  padding: 0;
+  text-align: center;
+}
+
+/* Jour : rond de 44 px ; jour d'entraînement : dégradé de la séance */
+.calendrier__jour {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--couleur-texte);
+  font-size: var(--texte-petit);
+  font-variant-numeric: tabular-nums;
+}
+
+.calendrier__jour--fait {
+  background: var(--accent-degrade);
+  box-shadow: 0 6px 16px -8px var(--accent);
+  color: var(--couleur-sur-action);
+  font-weight: var(--graisse-accent);
+  cursor: pointer;
+  transition: transform 0.15s var(--courbe);
+}
+
+.calendrier__jour--fait:active {
+  transform: scale(0.9);
+}
+
+.calendrier__jour--aujourdhui {
+  box-shadow: inset 0 0 0 1.5px var(--couleur-texte);
+}
+
+.calendrier__jour--fait.calendrier__jour--aujourdhui {
+  box-shadow: 0 0 0 2px var(--couleur-carte), 0 0 0 3.5px var(--couleur-texte);
+}
+
+.calendrier__jour--futur {
+  opacity: 0.35;
+}
+
+.calendrier__plus {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  padding: 0 4px;
+  border-radius: var(--rayon-pilule);
+  background: var(--couleur-texte);
+  color: var(--couleur-fond);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.calendrier__resume {
+  margin-top: var(--esp-12);
+  font-size: var(--texte-petit);
+  color: var(--couleur-texte-secondaire);
+  text-align: center;
 }
 
 /* ---------- Effets au défilement (navigateurs qui savent les lier au scroll) ---------- */

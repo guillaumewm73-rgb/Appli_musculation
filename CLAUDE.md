@@ -114,6 +114,9 @@ Analyse du style des applis de référence (détail dans `DESIGN.md`), puis :
 - Choix gardé dans `suivi_theme` (`"clair"` ou `"sombre"`) : préférence du téléphone, hors de `suivi_donnees`, donc ni exportée ni importée. Petit script dans `index.html` qui applique le thème avant l'affichage.
 - Couleurs du mode clair : jetons dans `style.css` (`:root[data-theme="clair"]`), détail dans `DESIGN.md`.
 
+## Finitions v4 (14/10/2026, demandées par Guillaume)
+Salutation + date sur l'accueil, muscles des séances en pastilles, relief des cartes, chiffres arrondis, boutons secondaires tonals, mini-anneau de séries et exercice en cours en séance, minuteur circulaire, calendrier du mois dans l'Historique, mini-tendances dans les tuiles. Aucune donnée nouvelle (tout est calculé depuis l'historique). Détail dans `DESIGN.md`.
+
 ## Fonctionnalités — version 2 (plus tard, ne pas faire d'office)
 - Notes par séance (fatigue, sommeil, douleurs).
 

@@ -608,6 +608,7 @@ function montrerEcran(nom, titre, libelleRetour = 'Retour à l\'accueil', classe
     if (!enSeance) document.getElementById('bandeau-record')?.classList.remove('bandeau-record--visible');
     const boutonTheme = document.getElementById('bouton-theme');
     if (boutonTheme) boutonTheme.hidden = nom !== 'accueil';
+    majSurtitre(nom === 'accueil');
     garderEcranAllume(Boolean(etat.donnees.enCours));
     document.getElementById('compteur-seance').hidden = !enSeance;
     document.getElementById('avancement-seance').hidden = !enSeance;
@@ -702,10 +703,19 @@ function transitionEcran(appliquer) {
   transition.ready.catch(() => {}); // transition sautée (onglet caché…) : l'écran change quand même
 }
 
+/** Les 3 muscles les plus travaillés d'une séance (muscle principal de chaque exercice). */
+function musclesSeance(seance) {
+  const compte = {};
+  for (const exercice of seance.exercices.filter(Boolean)) {
+    const muscle = musclesDe(exercice)[0];
+    if (muscle) compte[muscle] = (compte[muscle] || 0) + 1;
+  }
+  return Object.keys(compte).sort((a, b) => compte[b] - compte[a]).slice(0, 3).map((m) => NOMS_MUSCLES[m]);
+}
+
 /** Bouton-carte d'une séance pour l'écran d'accueil. */
 function creerBoutonSeance(seance, numero, prochaine) {
   const { historique, enCours } = etat.donnees;
-  const nbExercices = seance.exercices.length;
   const enCoursIci = enCours && enCours.seanceId === seance.id;
   let quand;
   if (enCoursIci) {
@@ -716,8 +726,14 @@ function creerBoutonSeance(seance, numero, prochaine) {
     quand = date ? `Dernière fois : ${formaterDate(date)}` : 'Pas encore faite';
   }
 
-  const bouton = creerBoutonCarte(`Séance ${numero}`, seance.nom, `${nbExercices} exercice${nbExercices > 1 ? 's' : ''} · ${quand}`, numero, teinte(seance.id));
+  const bouton = creerBoutonCarte(`Séance ${numero}`, seance.nom, quand, numero, teinte(seance.id));
   bouton.dataset.seance = seance.id;
+  const muscles = musclesSeance(seance);
+  if (muscles.length) {
+    const pastilles = creer('span', 'seance__muscles');
+    pastilles.append(...muscles.map((m) => creer('span', 'puce-muscle', m)));
+    bouton.querySelector('.seance__nom').after(pastilles);
+  }
   if (enCoursIci) {
     bouton.querySelector('.seance__numero').append(creer('span', 'puce puce--en-cours', 'En cours'));
     const { faites, total } = compterSeries(enCours);
@@ -850,6 +866,60 @@ function remplirTuiles() {
   const derniere = pesees[pesees.length - 1];
   document.getElementById('info-corps').textContent = derniere
     ? `${formaterNombre(derniere.poids)} kg · ${ilYA(tempsDate(derniere.date))}` : 'Note ton poids';
+
+  // Mini-tendances (décoratives : la valeur est écrite dans la tuile, le détail est sur l'écran)
+  const semaines = parSemaine(8);
+  poserTendance('bouton-historique', creerBarresTendance(semaines.map((sem) => sem.length)));
+  const volumes = semaines.map((sem) => sem.reduce((total, e) => total + volumeEntree(e), 0));
+  poserTendance('bouton-progression', volumes.some(Boolean) ? creerLigneTendance(volumes) : null);
+  if (volumes.some(Boolean)) document.querySelector('#bouton-progression .tuile__info').textContent = 'Volume hebdo';
+  poserTendance('bouton-corps', pesees.length >= 2 ? creerLigneTendance(pesees.slice(-10).map((e) => e.poids)) : null);
+}
+
+/** Séances des n dernières semaines (lundi → dimanche), la plus ancienne d'abord. */
+function parSemaine(n) {
+  const lundi = debutSemaine();
+  const semaines = Array.from({ length: n }, () => []);
+  for (const entree of entreesHistorique()) {
+    const temps = tempsDepuisId(entree.id);
+    const k = temps >= lundi ? 0 : Math.floor((lundi - temps) / SEPT_JOURS) + 1; // 0 = cette semaine
+    if (k < n) semaines[n - 1 - k].push(entree);
+  }
+  return semaines;
+}
+
+/** Remplace la mini-tendance d'une tuile (ou l'enlève si null). */
+function poserTendance(idTuile, svg) {
+  const tuile = document.getElementById(idTuile);
+  if (!tuile) return;
+  tuile.querySelector('.tuile__tendance')?.remove();
+  if (svg) tuile.append(svg);
+}
+
+/** Petite courbe : trait discret, dernier point dans la couleur d'accent. */
+function creerLigneTendance(valeurs) {
+  const min = Math.min(...valeurs);
+  const ecart = Math.max(...valeurs) - min || 1;
+  const points = valeurs.map((v, i) => [4 + (i * 64) / Math.max(1, valeurs.length - 1), 26 - ((v - min) / ecart) * 20]);
+  const svg = creerSvg('svg', { viewBox: '0 0 72 32', 'aria-hidden': 'true', focusable: 'false' }, 'tuile__tendance');
+  svg.append(
+    creerSvg('polyline', { points: points.map((p) => p.map(fixe).join(',')).join(' ') }, 'tendance__ligne'),
+    creerSvg('circle', { cx: fixe(points[points.length - 1][0]), cy: fixe(points[points.length - 1][1]), r: 4 }, 'tendance__point'),
+  );
+  return svg;
+}
+
+/** Petites barres (séances par semaine) : semaine en cours dans la couleur d'accent. */
+function creerBarresTendance(valeurs) {
+  if (!valeurs.some(Boolean)) return null;
+  const max = Math.max(...valeurs);
+  const svg = creerSvg('svg', { viewBox: '0 0 72 32', 'aria-hidden': 'true', focusable: 'false' }, 'tuile__tendance');
+  valeurs.forEach((v, i) => {
+    const hauteur = v ? Math.max(4, (v / max) * 28) : 2;
+    const classe = `tendance__barre${i === valeurs.length - 1 ? ' tendance__barre--actuelle' : ''}${v ? '' : ' tendance__barre--vide'}`;
+    svg.append(creerSvg('rect', { x: i * 9 + 0.5, y: fixe(30 - hauteur), width: 6, height: fixe(hauteur), rx: 2 }, classe));
+  });
+  return svg;
 }
 
 /** Date de la dernière fois qu'une séance a été faite, ou null. */
@@ -899,6 +969,25 @@ function remplirRappelSauvegarde() {
   carte.replaceChildren(haut, creer('p', 'carte__texte', `${texte} Tes séances ne sont que sur ce téléphone : un export les met à l'abri.`), bouton);
 }
 
+/** « Bonjour Guillaume » le jour, « Bonsoir Guillaume » à partir de 18 h. */
+function salutation() {
+  const heure = new Date().getHours();
+  return `${heure >= 18 || heure < 4 ? 'Bonsoir' : 'Bonjour'} Guillaume`;
+}
+
+/** « Mardi · 14/10/2026 » au-dessus du titre de l'accueil (créé au besoin). */
+function majSurtitre(visible) {
+  let surtitre = document.getElementById('surtitre');
+  if (!surtitre) {
+    surtitre = creer('p', 'barre__surtitre');
+    surtitre.id = 'surtitre';
+    document.querySelector('.barre').prepend(surtitre);
+  }
+  const jour = new Date().toLocaleDateString('fr-FR', { weekday: 'long' });
+  surtitre.textContent = `${jour.charAt(0).toUpperCase()}${jour.slice(1)} · ${formaterDate(dateDuJour())}`;
+  surtitre.hidden = !visible;
+}
+
 /** Écran d'accueil : semaine, séances, tuiles. */
 function afficherAccueil() {
   const { programme, historique } = etat.donnees;
@@ -916,7 +1005,7 @@ function afficherAccueil() {
     item.append(creerBoutonSeance(seance, i + 1, !etat.donnees.enCours && seance === prochaine));
     return item;
   }));
-  montrerEcran('accueil', 'Salut Guillaume');
+  montrerEcran('accueil', salutation());
 }
 
 /** Champ texte poids ou reps, avec le bon clavier sur téléphone. */
@@ -995,6 +1084,9 @@ function creerCarteExercice(exEnCours, i, definition) {
   series.append(entete, ...exEnCours.series.map((serie, j) => creerLigneSerie(exercice, serie, i, j)));
 
   const compte = creer('span', 'exercice__compte');
+  compte.setAttribute('role', 'img');
+  compte.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 44 44" aria-hidden="true"><circle class="compte__piste" cx="22" cy="22" r="19"/><circle class="compte__arc" cx="22" cy="22" r="19" pathLength="100"/></svg>');
+  compte.append(creer('span', 'compte__texte'));
   const haut = creer('div', 'exercice__haut');
   haut.append(titre, compte);
 
@@ -1077,8 +1169,15 @@ function majCarteExercice(carte, exEnCours) {
   const faites = exEnCours.series.filter((s) => s.fait).length;
   const total = exEnCours.series.length;
   const termine = total > 0 && faites === total;
+  // Mini-anneau : l'arc avance à chaque série, une coche quand tout est fait
   const compte = carte.querySelector('.exercice__compte');
-  compte.textContent = termine ? 'Terminé' : `${faites}/${total}`;
+  const arc = compte.querySelector('.compte__arc');
+  arc.style.strokeDashoffset = String(100 - (total ? (faites / total) * 100 : 0));
+  arc.style.opacity = faites ? '1' : '0'; // à zéro, le bout arrondi laisserait un point
+  const texte = compte.querySelector('.compte__texte');
+  if (termine) texte.innerHTML = ICONE_COCHE;
+  else texte.textContent = `${faites}/${total}`;
+  compte.setAttribute('aria-label', termine ? 'Exercice terminé' : `${faites} série${faites > 1 ? 's' : ''} faite${faites > 1 ? 's' : ''} sur ${total}`);
   const etaitTermine = carte.classList.contains('exercice--termine');
   carte.classList.toggle('exercice--termine', termine);
   const ressenti = carte.querySelector('.ressenti');
@@ -1110,6 +1209,10 @@ function majAvancement() {
   compteur.setAttribute('aria-label', `${faites} séries faites sur ${total}`);
   const terminer = document.querySelector('[data-action="terminer"]');
   if (terminer) terminer.classList.toggle('bouton--pret', total > 0 && faites === total);
+  const actuel = enCours.exercices.findIndex((ex) => ex.series.some((s) => !s.fait));
+  for (const carte of document.querySelectorAll('#ecran-seance .exercice')) {
+    carte.classList.toggle('exercice--actuel', Number(carte.dataset.exercice) === actuel);
+  }
 }
 
 /** Écran de séance : exercices, séries, boutons Terminer / Abandonner. */
@@ -1192,8 +1295,9 @@ function elementMinuteur() {
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', 'Minuteur de repos');
 
-  const jauge = creer('span', 'minuteur__jauge');
-  jauge.append(document.createElement('span'));
+  const anneau = creer('span', 'minuteur__anneau');
+  anneau.setAttribute('aria-hidden', 'true');
+  anneau.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 48 48"><circle class="minuteur__piste" cx="24" cy="24" r="20"/><circle class="minuteur__arc" cx="24" cy="24" r="20" pathLength="100"/></svg>');
   const textes = creer('div', 'minuteur__textes');
   const temps = creer('span', 'minuteur__temps');
   temps.setAttribute('role', 'timer');
@@ -1209,7 +1313,7 @@ function elementMinuteur() {
   const annonce = creer('span', 'visuellement-cache');
   annonce.id = 'annonce-minuteur';
   annonce.setAttribute('role', 'status');
-  el.append(jauge, textes, boutons, annonce);
+  el.append(anneau, textes, boutons, annonce);
 
   el.addEventListener('click', (evenement) => {
     const bouton = evenement.target.closest('[data-minuteur]');
@@ -1259,7 +1363,7 @@ function majMinuteur() {
   el.querySelector('.minuteur__libelle').textContent = `Repos · ${minuteur.nom}`;
   el.querySelector('.minuteur__temps').textContent = formaterChrono(reste);
   el.classList.toggle('minuteur--bientot', reste <= 5); // les 5 dernières secondes battent
-  el.querySelector('.minuteur__jauge span').style.width = `${Math.min(100, (reste / minuteur.total) * 100)}%`;
+  el.querySelector('.minuteur__arc').style.strokeDashoffset = String(100 - Math.min(100, (reste / minuteur.total) * 100));
 }
 
 /** Fin du repos : bips + vibration (Android), message, puis la barre disparaît. */
@@ -1271,7 +1375,7 @@ function finMinuteur() {
   el.classList.add('minuteur--fini');
   el.querySelector('.minuteur__libelle').textContent = 'Repos terminé';
   el.querySelector('.minuteur__temps').textContent = 'C\'est reparti !';
-  el.querySelector('.minuteur__jauge span').style.width = '0%';
+  el.querySelector('.minuteur__arc').style.strokeDashoffset = '0'; // anneau plein : c'est reparti
   document.getElementById('annonce-minuteur').textContent = 'Repos terminé : série suivante.';
   biper();
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
@@ -2328,8 +2432,110 @@ function texteDuree(entree) {
   return Number.isFinite(entree.dureeMin) ? `${entree.dureeMin} min` : '';
 }
 
+/** « 340 » min → « 5 h 40 ». */
+function texteHeures(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h ? `${h} h${m ? ` ${deuxChiffres(m)}` : ''}` : `${m} min`;
+}
+
+/** Calendrier d'un mois : chaque jour d'entraînement prend la couleur de sa séance et ouvre son détail. */
+function creerCalendrier() {
+  const aujourdhui = new Date();
+  const premier = new Date(etat.moisCalendrier ?? new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), 1).getTime());
+  const annee = premier.getFullYear();
+  const mois = premier.getMonth();
+  const estMoisCourant = annee === aujourdhui.getFullYear() && mois === aujourdhui.getMonth();
+
+  // Séances du mois, jour par jour (la plus ancienne d'abord)
+  const parJour = {};
+  for (const entree of entreesHistorique().reverse()) {
+    const date = new Date(tempsDepuisId(entree.id));
+    if (date.getFullYear() === annee && date.getMonth() === mois) (parJour[date.getDate()] ||= []).push(entree);
+  }
+  const duMois = Object.values(parJour).flat();
+
+  const nomMois = premier.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const titre = creer('h2', 'calendrier__titre', `${nomMois.charAt(0).toUpperCase()}${nomMois.slice(1)}`);
+  const fleche = (sens, libelle, chemin) => {
+    const bouton = creer('button', 'bouton-icone calendrier__fleche');
+    bouton.type = 'button';
+    bouton.dataset.mois = String(sens);
+    bouton.setAttribute('aria-label', libelle);
+    bouton.insertAdjacentHTML('beforeend', `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="${chemin}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`);
+    return bouton;
+  };
+  const suivant = fleche(1, 'Mois suivant', 'M9 6l6 6-6 6');
+  suivant.disabled = estMoisCourant;
+  const haut = creer('div', 'calendrier__haut');
+  haut.append(fleche(-1, 'Mois précédent', 'M15 6l-6 6 6 6'), titre, suivant);
+
+  const table = creer('table', 'calendrier__grille');
+  table.append(creer('caption', 'visuellement-cache', `Séances de ${nomMois}`));
+  const tete = document.createElement('thead');
+  const ligneJours = document.createElement('tr');
+  ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'].forEach((jour) => {
+    const th = creer('th', '', jour.charAt(0).toUpperCase());
+    th.scope = 'col';
+    th.setAttribute('abbr', jour);
+    ligneJours.append(th);
+  });
+  tete.append(ligneJours);
+  const corps = document.createElement('tbody');
+  const decalage = (premier.getDay() + 6) % 7; // lundi en premier
+  const nbJours = new Date(annee, mois + 1, 0).getDate();
+  let ligne = document.createElement('tr');
+  for (let k = 0; k < decalage; k++) ligne.append(document.createElement('td'));
+  for (let jour = 1; jour <= nbJours; jour++) {
+    const cellule = document.createElement('td');
+    const seances = parJour[jour];
+    const futur = estMoisCourant && jour > aujourdhui.getDate();
+    const classes = `calendrier__jour${estMoisCourant && jour === aujourdhui.getDate() ? ' calendrier__jour--aujourdhui' : ''}${futur ? ' calendrier__jour--futur' : ''}`;
+    if (seances) {
+      const derniere = seances[seances.length - 1];
+      const bouton = creer('button', `${classes} calendrier__jour--fait ${teinte(seances[0].seanceId)}`, String(jour));
+      bouton.type = 'button';
+      bouton.dataset.entree = derniere.id;
+      bouton.setAttribute('aria-label', `${seances.map((e) => nomSeance(e.seanceId)).join(' et ')}, le ${formaterDate(derniere.id)}`);
+      if (seances.length > 1) bouton.append(creer('span', 'calendrier__plus', `+${seances.length - 1}`));
+      cellule.append(bouton);
+    } else {
+      cellule.append(creer('span', classes, String(jour)));
+    }
+    ligne.append(cellule);
+    if ((decalage + jour) % 7 === 0) {
+      corps.append(ligne);
+      ligne = document.createElement('tr');
+    }
+  }
+  if (ligne.children.length) corps.append(ligne);
+  table.append(tete, corps);
+
+  const minutes = duMois.reduce((total, e) => total + (Number.isFinite(e.dureeMin) ? e.dureeMin : 0), 0);
+  const resume = duMois.length
+    ? `${duMois.length} séance${duMois.length > 1 ? 's' : ''} · ${texteHeures(minutes)} d'entraînement`
+    : 'Aucune séance ce mois-là.';
+  const carte = creer('section', 'carte calendrier');
+  carte.id = 'calendrier';
+  carte.setAttribute('aria-label', 'Calendrier des séances');
+  carte.append(haut, table, creer('p', 'calendrier__resume', resume));
+  return carte;
+}
+
+/** Mois précédent ou suivant dans le calendrier (seule la carte change). */
+function decalerMois(sens) {
+  const aujourdhui = new Date();
+  const actuel = new Date(etat.moisCalendrier ?? new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), 1).getTime());
+  etat.moisCalendrier = new Date(actuel.getFullYear(), actuel.getMonth() + sens, 1).getTime();
+  const carte = creerCalendrier();
+  document.getElementById('calendrier').replaceWith(carte);
+  // Le focus reste sur la flèche touchée (ou passe à « précédent » si « suivant » devient grisée)
+  (carte.querySelector(`[data-mois="${sens}"]:not(:disabled)`) || carte.querySelector('[data-mois="-1"]')).focus();
+}
+
 /** Écran Historique : une carte par séance passée. */
 function afficherHistorique() {
+  etat.moisCalendrier = null; // le calendrier s'ouvre sur le mois en cours
   const entrees = entreesHistorique();
   const ecran = document.getElementById('ecran-historique');
   if (!entrees.length) {
@@ -2348,7 +2554,7 @@ function afficherHistorique() {
       item.append(bouton);
       return item;
     }));
-    ecran.replaceChildren(liste);
+    ecran.replaceChildren(creerCalendrier(), creer('h2', 'titre-section', 'Toutes tes séances'), liste);
   }
   montrerEcran('historique', 'Historique');
 }
@@ -5104,6 +5310,11 @@ document.getElementById('ecran-bilan').addEventListener('click', (evenement) => 
 });
 
 document.getElementById('ecran-historique').addEventListener('click', (evenement) => {
+  const mois = evenement.target.closest('[data-mois]');
+  if (mois) {
+    decalerMois(Number(mois.dataset.mois));
+    return;
+  }
   const bouton = evenement.target.closest('[data-entree]');
   if (bouton) afficherDetail(bouton.dataset.entree);
 });
