@@ -4115,7 +4115,7 @@ function afficherSauvegarde() {
 
 /* ---------- Sam, le coach : analyses locales (hors ligne, rien ne sort du téléphone) ---------- */
 
-// Isolation : +1 kg ; polyarticulaire : +2 kg (règle de progression de CLAUDE.md)
+// Isolation : +1 kg ; polyarticulaire : +2 kg (règle de progression de CLAUDE.md), arrondis au palier du matériel
 const ISOLATIONS = new Set([
   'elevations-laterales', 'extension-triceps-poulie', 'face-pull', 'curl-barre', 'curl-marteau',
   'leg-extension', 'leg-curl', 'mollets', 'ecarte-poulie', 'elevations-frontales', 'curl-incline',
@@ -4227,6 +4227,56 @@ function musclesDe(exercice) {
 
 const arrondirCharge = (poids, pas) => Math.max(0, Math.round(poids / pas) * pas);
 
+// Plus petit écart de charge possible selon le matériel : la règle +2 kg / +1 kg est arrondie au palier réel
+const PAS_MATERIEL = { barre: 2.5, halteres: 2, machine: 5, lest: 2.5 };
+const NOMS_MATERIEL = { barre: 'de la barre', halteres: 'des haltères', machine: 'de la machine', lest: 'du lest' };
+const MATERIEL_EXERCICES = {
+  'dev-couche': 'barre', rdl: 'barre', 'curl-barre': 'barre',
+  'dev-incline-halteres': 'halteres', 'militaire-ou-laterales': 'halteres', 'curl-marteau': 'halteres',
+  'fentes-bulgares': 'halteres', mollets: 'halteres', 'dev-halteres': 'halteres', 'elevations-frontales': 'halteres',
+  'curl-incline': 'halteres', 'pistol-squat': 'halteres',
+  // « Rowing barre ou poulie basse » : le cran de la poulie (5 kg) se charge aussi sur une barre
+  rowing: 'machine', 'tirage-vertical': 'machine', dips: 'machine', 'extension-triceps-poulie': 'machine',
+  'pec-machine': 'machine', 'face-pull': 'machine', presse: 'machine', 'leg-extension': 'machine', 'leg-curl': 'machine',
+  'abdos-poulie': 'machine', 'tirage-horizontal-uni': 'machine', 'ecarte-poulie': 'machine',
+  'tractions-supination': 'lest',
+};
+// Exercices ajoutés à la main ou de remplacement : matériel deviné d'après le nom
+const MATERIEL_PAR_MOT = [
+  [/haltère|haltere|marteau|goblet/i, 'halteres'],
+  [/poulie|machine|presse|leg |tirage|pec deck|butterfly|corde|hack|assis|crunch|face pull|extension/i, 'machine'],
+];
+
+function materiel(exercice) {
+  if (MATERIEL_EXERCICES[exercice.id]) return MATERIEL_EXERCICES[exercice.id];
+  const trouve = MATERIEL_PAR_MOT.find(([motif]) => motif.test(exercice.nom));
+  if (trouve) return trouve[1];
+  return exercice.poidsDuCorps ? 'lest' : 'barre';
+}
+
+const auCentieme = (n) => Math.round(n * 100) / 100;
+
+/** Charge suivante qu'on peut vraiment mettre : +2 kg (+1 kg en isolation), arrondi au palier au-dessus. */
+function chargeSuivante(exercice, poids) {
+  const pas = PAS_MATERIEL[materiel(exercice)];
+  return auCentieme(Math.ceil((poids + (estIsolation(exercice) ? 1 : 2)) / pas - 1e-9) * pas);
+}
+
+/** Charge plus légère (environ −10 %, au palier le plus proche) ; null s'il n'y a rien de plus léger. */
+function chargePlusLegere(exercice, poids) {
+  const pas = PAS_MATERIEL[materiel(exercice)];
+  let legere = auCentieme(Math.round((poids * 0.9) / pas) * pas);
+  if (legere >= poids) legere = auCentieme(poids - pas);
+  return legere > 0 ? legere : null;
+}
+
+/** « +2,5 kg » et, si la règle de base a été arrondie, le palier qui l'explique. */
+function texteHausse(exercice, avant, apres) {
+  const ecart = auCentieme(apres - avant);
+  const base = estIsolation(exercice) ? 1 : 2;
+  return ecart === base ? `+${formaterNombre(ecart)} kg` : `+${formaterNombre(ecart)} kg, le palier ${NOMS_MATERIEL[materiel(exercice)]}`;
+}
+
 /** Dernières séances (de la plus récente à la plus ancienne) où l'exercice a au moins une série faite. */
 function seancesExercice(exerciceId, combien) {
   const resultat = [];
@@ -4275,7 +4325,7 @@ function conseilCharge(exercice) {
   // « max » (tractions) : au-delà de 12 reps partout, on ajoute du lest
   if (exercice.repsMin === null) {
     if (toutesFaites && Math.min(...reps) >= 12) {
-      const lest = (poids ?? 0) + 2;
+      const lest = chargeSuivante(exercice, poids ?? 0);
       return { type: 'monter', poids: lest, court: `Lest : ${formaterNombre(lest)} kg`, texte: `${resume} : 12 reps ou plus partout. Ajoute du lest : ${formaterNombre(lest)} kg.` };
     }
     return { type: 'garder', court: 'Une rep de plus', texte: `${resume}. Vise une rep de plus que la dernière fois sur chaque série.` };
@@ -4284,8 +4334,7 @@ function conseilCharge(exercice) {
     return { type: 'garder', court: 'Note le poids', texte: `${resume}. Note le poids utilisé pour que je suive ta progression.` };
   }
 
-  // Règle de l'appli : haut de fourchette partout → +2 kg (+1 kg en isolation)
-  const iso = estIsolation(exercice);
+  // Règle de l'appli : haut de fourchette partout → +2 kg (+1 kg en isolation), arrondi au palier du matériel
   const ressenti = passees[0].ressenti;
   if (toutesFaites && reps.every((r) => r >= haut) && ressenti === 'dur') {
     return {
@@ -4294,24 +4343,24 @@ function conseilCharge(exercice) {
     };
   }
   if (toutesFaites && reps.every((r) => r >= exercice.repsMin) && ressenti === 'facile' && !reps.every((r) => r >= haut)) {
-    const nouveau = poids + (iso ? 1 : 2);
+    const nouveau = chargeSuivante(exercice, poids);
     return {
       type: 'monter', poids: nouveau, court: `Passe à ${formaterNombre(nouveau)} kg`,
-      texte: `${resume} : toutes tes séries dans la fourchette et c'était facile. Passe à ${formaterNombre(nouveau)} kg (+${iso ? 1 : 2} kg).`,
+      texte: `${resume} : toutes tes séries dans la fourchette et c'était facile. Passe à ${formaterNombre(nouveau)} kg (${texteHausse(exercice, poids, nouveau)}).`,
     };
   }
   if (toutesFaites && reps.every((r) => r >= haut)) {
-    const nouveau = poids + (iso ? 1 : 2);
+    const nouveau = chargeSuivante(exercice, poids);
     return {
       type: 'monter', poids: nouveau, court: `Passe à ${formaterNombre(nouveau)} kg`,
-      texte: `${resume} : haut de fourchette partout. Passe à ${formaterNombre(nouveau)} kg (+${iso ? 1 : 2} kg).`,
+      texte: `${resume} : haut de fourchette partout. Passe à ${formaterNombre(nouveau)} kg (${texteHausse(exercice, poids, nouveau)}).`,
     };
   }
   // Trop dur deux séances de suite (la moitié des séries sous le bas de fourchette) : on baisse un peu
   const tropDur = (series) => series.filter((s) => typeof s.reps === 'number' && s.reps < exercice.repsMin).length >= Math.ceil(series.length / 2);
   if (passees.length >= 2 && tropDur(derniere) && tropDur(passees[1].series) && (poidsMaxSeries(passees[1].series) ?? 0) >= poids) {
-    const nouveau = arrondirCharge(poids * 0.9, iso ? 1 : 2.5);
-    if (nouveau < poids) {
+    const nouveau = chargePlusLegere(exercice, poids);
+    if (nouveau !== null) {
       return {
         type: 'baisser', poids: nouveau, court: `Baisse à ${formaterNombre(nouveau)} kg`,
         texte: `${resume} : sous ${exercice.repsMin} reps deux séances de suite. Baisse à ${formaterNombre(nouveau)} kg pour travailler dans ta fourchette, puis remonte.`,
@@ -4755,7 +4804,7 @@ Comment tu réponds :
 - En français, en le tutoyant, comme un coach bienveillant et direct.
 - Court et concret : 3 à 8 phrases ou une courte liste, sauf s'il demande plus de détails.
 - Appuie-toi sur ses données et cite les chiffres (charges, reps, dates au format JJ/MM/AAAA). Si une information manque, dis-le simplement.
-- Règle de progression de l'appli : quand toutes les séries d'un exercice atteignent le haut de la fourchette de reps, proposer +2 kg sur un polyarticulaire, +1 kg sur une isolation. C'est une suggestion, jamais une obligation.${format}
+- Règle de progression de l'appli : quand toutes les séries d'un exercice atteignent le haut de la fourchette de reps, proposer +2 kg sur un polyarticulaire, +1 kg sur une isolation, arrondi à une charge qu'on peut vraiment mettre (paliers : barre 2,5 kg, haltères 2 kg, machines et poulies 5 kg, lest 2,5 kg). C'est une suggestion, jamais une obligation.${format}
 - Santé : tu n'es pas médecin. En cas de douleur, de blessure, de malaise ou de question médicale, conseille d'arrêter l'exercice concerné et de consulter un professionnel de santé. Jamais de produits dopants, de régimes extrêmes ni de charges dangereuses.
 - Si la question n'a rien à voir avec l'entraînement, la récupération ou la nutrition sportive, ramène gentiment la discussion vers ses séances.`;
 }
